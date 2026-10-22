@@ -1,0 +1,10 @@
+/target
+/dist
+/Installeur
+*.log
+.idea/
+.vscode/
+*.swp
+Thumbs.db
+desktop.ini
+code_source.txt
