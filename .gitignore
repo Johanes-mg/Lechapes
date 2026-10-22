@@ -1,6 +1,7 @@
 /target
 /dist
 /Installeur
+installer.iss
 *.log
 .idea/
 .vscode/
