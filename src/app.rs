@@ -20,6 +20,8 @@ pub struct LechapesApp {
     last_session_save: f64,
     focus_editor: bool,
     sombre: bool,
+    about_open: bool,
+    language_open: bool,
 }
 
 impl LechapesApp {
@@ -35,6 +37,8 @@ impl LechapesApp {
             last_session_save: 0.0,
             focus_editor: true,
             sombre: true,
+            about_open: false,
+            language_open: false,
         };
 
         if let Some(session) = persistence::load(&cc.egui_ctx) {
@@ -369,15 +373,6 @@ impl LechapesApp {
                         }
                     });
                     ui.menu_button(self.i18n.t("edit"), |ui| {
-                        if ui.button(self.i18n.t("undo")).clicked() {
-                            self.undo();
-                            ui.close_menu();
-                        }
-                        if ui.button(self.i18n.t("redo")).clicked() {
-                            self.redo();
-                            ui.close_menu();
-                        }
-                        ui.separator();
                         if ui.button(self.i18n.t("find")).clicked() {
                             self.search.open = true;
                             self.search.mode = SearchMode::Find;
@@ -402,37 +397,114 @@ impl LechapesApp {
                             theme::configurer_style_editeur(ctx);
                         }
                         ui.separator();
-                        if ui.button(self.i18n.t("language")).clicked() {
-                            self.i18n.lang = match self.i18n.lang {
-                                Lang::Fr => Lang::En,
-                                Lang::En => Lang::Fr,
-                            };
+                        if ui.button(self.i18n.t("change_language")).clicked() {
+                            self.language_open = true;
                             ui.close_menu();
                         }
                     });
                     ui.menu_button(self.i18n.t("help"), |ui| {
                         if ui.button(self.i18n.t("about")).clicked() {
-                            self.status = format!(
-                                "Lechapes {} - {}",
-                                env!("CARGO_PKG_VERSION"),
-                                self.i18n.t("editor")
-                            );
+                            self.about_open = true;
                             ui.close_menu();
                         }
                     });
                 });
+            });
+        });
+    }
 
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if theme::bouton_image_seule(ui, "redo.png", 28.0, 16.0) {
-                        self.redo();
+    fn language_window(&mut self, ctx: &egui::Context) {
+        if !self.language_open {
+            return;
+        }
+        let mut close = false;
+        egui::Window::new(self.i18n.t("change_language"))
+            .collapsible(false)
+            .resizable(false)
+            .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
+            .show(ctx, |ui| {
+                ui.set_min_width(260.0);
+                egui::ScrollArea::vertical()
+                    .max_height(220.0)
+                    .auto_shrink([false, false])
+                    .show(ui, |ui| {
+                        let langs = [
+                            (Lang::Fr, "fr", "drapeau_fr.png"),
+                            (Lang::En, "en", "drapeau_en.png"),
+                            (Lang::Es, "es", "drapeau_es.png"),
+                        ];
+                        for (lang, key, img) in langs {
+                            let selected = self.i18n.lang == lang;
+                            ui.horizontal(|ui| {
+                                if theme::bouton_image_seule(ui, img, 32.0, 20.0) {
+                                    self.i18n.lang = lang;
+                                    close = true;
+                                }
+                                if ui.selectable_label(selected, self.i18n.t(key)).clicked() {
+                                    self.i18n.lang = lang;
+                                    close = true;
+                                }
+                            });
+                            ui.separator();
+                        }
+                    });
+                ui.add_space(8.0);
+                if ui.button(self.i18n.t("close")).clicked() {
+                    close = true;
+                }
+            });
+        if close {
+            self.language_open = false;
+        }
+    }
+
+    fn about_window(&mut self, ctx: &egui::Context) {
+        if !self.about_open {
+            return;
+        }
+        let mut close = false;
+        egui::Window::new(self.i18n.t("about"))
+            .collapsible(false)
+            .resizable(false)
+            .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
+            .show(ctx, |ui| {
+                ui.set_min_width(320.0);
+                ui.vertical_centered(|ui| {
+                    if let Some(tex) = theme::image(ctx, "logo.png") {
+                        let hauteur = 64.0;
+                        let ratio = tex.size_vec2().x / tex.size_vec2().y;
+                        ui.add(
+                            egui::Image::new(&tex)
+                                .fit_to_exact_size(egui::vec2(hauteur * ratio, hauteur)),
+                        );
                     }
+                    ui.add_space(10.0);
+                    ui.label(
+                        egui::RichText::new("Lechapes")
+                            .size(20.0)
+                            .strong(),
+                    );
                     ui.add_space(4.0);
-                    if theme::bouton_image_seule(ui, "undo.png", 28.0, 16.0) {
-                        self.undo();
+                    ui.label(self.i18n.t("about_desc"));
+                    ui.add_space(10.0);
+                    ui.label(format!(
+                        "{} : Johanes-mg",
+                        self.i18n.t("about_author")
+                    ));
+                    ui.add_space(4.0);
+                    ui.hyperlink_to(
+                        self.i18n.t("about_github"),
+                        "https://github.com/Johanes-mg/Lechapes",
+                    );
+                    ui.add_space(12.0);
+                    if ui.button(self.i18n.t("close_window")).clicked() {
+                        close = true;
                     }
                 });
             });
-        });
+        if close {
+            self.about_open = false;
+        }
     }
 
     fn tabs_bar(&mut self, ctx: &egui::Context) {
@@ -783,7 +855,14 @@ impl eframe::App for LechapesApp {
             .resizable(true)
             .default_width(240.0)
             .show(ctx, |ui| {
-                if let Some(p) = self.explorer.ui(ui, &self.i18n) {
+                let action = self.explorer.ui(ui, &self.i18n);
+                if action.undo {
+                    self.undo();
+                }
+                if action.redo {
+                    self.redo();
+                }
+                if let Some(p) = action.open {
                     self.open_path(p);
                 }
             });
@@ -791,6 +870,8 @@ impl eframe::App for LechapesApp {
         self.editor(ctx);
         self.handle_pending_close(ctx);
         self.handle_pending_tab_close(ctx);
+        self.language_window(ctx);
+        self.about_window(ctx);
         self.save_session(ctx);
     }
 }

@@ -15,36 +15,118 @@ fn chemins_possibles(nom: &str) -> Vec<String> {
     chemins
 }
 
+fn hash_bytes(bytes: &[u8]) -> u64 {
+    let mut h: u64 = 0xcbf29ce484222325;
+    for &b in bytes {
+        h ^= b as u64;
+        h = h.wrapping_mul(0x100000001b3);
+    }
+    h
+}
+
 pub fn image(ctx: &egui::Context, nom: &str) -> Option<TextureHandle> {
+    let mut contenu: Option<Vec<u8>> = None;
+    for chemin in chemins_possibles(nom) {
+        if let Ok(bytes) = std::fs::read(&chemin) {
+            contenu = Some(bytes);
+            break;
+        }
+    }
+    let bytes = contenu?;
+    let hash = hash_bytes(&bytes);
+    let cle_cache = format!("{}#{}", nom, hash);
+
     {
         let cache = IMAGES.lock().unwrap();
         if let Some(map) = cache.as_ref() {
-            if let Some(tex) = map.get(nom) {
+            if let Some(tex) = map.get(&cle_cache) {
                 return Some(tex.clone());
             }
         }
     }
-    for chemin in chemins_possibles(nom) {
-        if let Ok(bytes) = std::fs::read(&chemin) {
-            if let Ok(img) = image::load_from_memory(&bytes) {
-                let rgba = img.to_rgba8();
-                let taille = [rgba.width() as usize, rgba.height() as usize];
-                let pixels = rgba.into_raw();
-                let color_image = egui::ColorImage::from_rgba_unmultiplied(taille, &pixels);
-                let options = TextureOptions {
-                    magnification: TextureFilter::Linear,
-                    minification: TextureFilter::Linear,
-                    wrap_mode: TextureWrapMode::ClampToEdge,
-                };
-                let texture = ctx.load_texture(nom, color_image, options);
-                let mut cache = IMAGES.lock().unwrap();
-                let map = cache.get_or_insert_with(HashMap::new);
-                map.insert(nom.to_string(), texture.clone());
-                return Some(texture);
-            }
+
+    let img = image::load_from_memory(&bytes).ok()?;
+    let rgba = img.to_rgba8();
+    let taille = [rgba.width() as usize, rgba.height() as usize];
+    let pixels = rgba.into_raw();
+    let color_image = egui::ColorImage::from_rgba_unmultiplied(taille, &pixels);
+    let options = TextureOptions {
+        magnification: TextureFilter::Linear,
+        minification: TextureFilter::Linear,
+        wrap_mode: TextureWrapMode::ClampToEdge,
+    };
+    let texture = ctx.load_texture(cle_cache.clone(), color_image, options);
+    let mut cache = IMAGES.lock().unwrap();
+    let map = cache.get_or_insert_with(HashMap::new);
+    map.insert(cle_cache, texture.clone());
+    Some(texture)
+}
+
+#[allow(dead_code)]
+pub fn bouton_image_texte(
+    ui: &mut egui::Ui,
+    fichier_image: &str,
+    texte: &str,
+    largeur: f32,
+    hauteur: f32,
+) -> bool {
+    let ctx = ui.ctx().clone();
+    let (rect, resp) = ui.allocate_exact_size(egui::vec2(largeur, hauteur), egui::Sense::click());
+    let fond = if resp.hovered() {
+        ui.visuals().widgets.hovered.bg_fill
+    } else {
+        Color32::TRANSPARENT
+    };
+    let painter = ui.painter();
+    painter.rect_filled(rect, 6.0, fond);
+
+    let taille_icone = hauteur - 10.0;
+    let marge = 8.0;
+    let largeur_icone = if image(&ctx, fichier_image).is_some() {
+        taille_icone
+    } else {
+        0.0
+    };
+    let largeur_texte = ui.fonts(|f| {
+        f.layout_no_wrap(
+            texte.to_string(),
+            egui::FontId::proportional(13.0),
+            ui.visuals().text_color(),
+        )
+        .size()
+        .x
+    });
+    let contenu_total = largeur_icone + if largeur_icone > 0.0 { marge } else { 0.0 } + largeur_texte;
+    let mut x = rect.center().x - contenu_total / 2.0;
+
+    if largeur_icone > 0.0 {
+        if let Some(tex) = image(&ctx, fichier_image) {
+            let img_rect = egui::Rect::from_center_size(
+                egui::pos2(x + taille_icone / 2.0, rect.center().y),
+                egui::vec2(taille_icone, taille_icone),
+            );
+            painter.image(
+                tex.id(),
+                img_rect,
+                egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
+                Color32::WHITE,
+            );
         }
+        x += largeur_icone + marge;
     }
-    None
+
+    painter.text(
+        egui::pos2(x, rect.center().y),
+        egui::Align2::LEFT_CENTER,
+        texte,
+        egui::FontId::proportional(13.0),
+        ui.visuals().text_color(),
+    );
+
+    if resp.hovered() {
+        ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
+    }
+    resp.clicked()
 }
 
 pub fn bouton_image_seule(ui: &mut egui::Ui, fichier: &str, taille: f32, taille_icone: f32) -> bool {

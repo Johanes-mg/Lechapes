@@ -1,159 +1,124 @@
+```markdown
 # Lechapes
 
-Editeur de texte leger multi-onglets pour Windows, ecrit en Rust avec egui / eframe.
+<div align="center">
 
-Lechapes vise la simplicite : ouvrir, ecrire, enregistrer, gerer un dossier de travail. Pas de plugins, pas de comptes, pas de cloud. Un binaire autonome, un dossier d'images, et c'est tout.
+![Lechapes Logo](images/logo.png)
 
----
+**Éditeur de texte léger, moderne et multi-onglets développé en Rust avec egui.**
 
-## Sommaire
+[![GitHub release](https://img.shields.io/github/v/release/Johanes-mg/Lechapes?style=flat-square)](https://github.com/Johanes-mg/Lechapes/releases)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](LICENSE)
+[![Rust](https://img.shields.io/badge/rust-stable-orange.svg?style=flat-square)](https://www.rust-lang.org)
 
-- [Apercu](#apercu)
-- [Fonctionnalites](#fonctionnalites)
-- [Raccourcis clavier](#raccourcis-clavier)
-- [Captures](#captures)
-- [Installation](#installation)
-- [Compilation depuis les sources](#compilation-depuis-les-sources)
-- [Structure du projet](#structure-du-projet)
-- [Donnees utilisateur](#donnees-utilisateur)
-- [Creation de l'installeur](#creation-de-linstalleur)
-- [Version portable](#version-portable)
-- [Depannage](#depannage)
-- [Feuille de route](#feuille-de-route)
-- [Licence](#licence)
+</div>
 
 ---
 
-## Apercu
+## À propos de Lechapes
 
-| Aspect | Valeur |
-|---|---|
-| Langage | Rust (edition 2021) |
-| Interface | egui / eframe 0.28 (backend glow) |
-| Cible de compilation | `x86_64-pc-windows-gnullvm` |
-| Version | 0.4.0 |
-| Auteur | Johanes-mg |
-| Licence | MIT |
+**Lechapes** est un éditeur de texte minimaliste, rapide et riche en fonctionnalités, conçu pour offrir une expérience d'édition fluide et agréable. Développé entièrement en **Rust** en utilisant la bibliothèque d'interface graphique **egui/eframe**, il combine des performances de haut niveau avec une faible empreinte mémoire.
 
 ---
 
-## Fonctionnalites
+## Fonctionnalités principales
 
-### Edition
-
-- Onglets multiples avec indicateur de modification (`*` apres le nom).
-- Fermeture d'un onglet par `×`, clic du milieu, ou `Ctrl+W`.
-- Confirmation d'enregistrement a la fermeture d'un onglet ou de l'application si des modifications non sauvegardees existent.
-- Editeur direct, sans cadre, fond et texte qui suivent le theme clair ou sombre.
-- Numeros de ligne alignes a droite qui defilent avec le texte.
-- Detection d'encodage : UTF-8, UTF-8 avec BOM, UTF-16LE, UTF-16BE, repli Windows-1252.
-- Detection des fins de ligne LF et CRLF, conservees a l'enregistrement.
-- Undo / redo par onglet (profondeur 256 entrees).
-
-### Recherche
-
-- Rechercher et remplacer, avec option sensible a la casse.
-- Remplacer l'occurrence courante ou toutes les occurrences.
-- Cycle entre les occurrences avec `F3`.
-
-### Explorateur
-
-- Ouverture d'un dossier racine.
-- Arborescence depliable.
-- Clic sur un fichier l'ouvre dans un onglet.
-- Rafraichissement de l'arborescence via l'icone dediee.
-
-### Interface
-
-- Mode sombre par defaut, bascule en mode clair via **Affichage → Mode sombre**.
-- Francais et anglais via **Affichage → Langue**.
-- Icone de fenetre et icone d'installeur personnalisees.
-- Restauration de session : les fichiers ouverts sont rouvert au prochain demarrage.
-
-### Creation de fichiers et dossiers
-
-- **Fichier → Nouveau fichier** cree un nouvel onglet vide (remplacable par un enregistrement sous).
-- **Fichier → Nouveau dossier** cree un dossier dans le repertoire racine de l'explorateur (ou le repertoire courant si aucun dossier n'est ouvert).
+- **Multi-onglets** : Ouvrez et gérez plusieurs fichiers simultanément avec la prise en charge des raccourcis clavier et de la fermeture au clic molette.
+- **Explorateur de fichiers intégré** : Naviguez facilement dans vos dossiers, ouvrez des fichiers et actualisez l'arborescence en un clic.
+- **Gestion des encodages et fins de lignes** : Détection automatique des encodages (UTF-8, UTF-16, Windows-1252, etc.) et des fins de lignes (LF / CRLF).
+- **Recherche et Remplacement** : Outils de recherche avancés avec prise en charge de la sensibilité à la casse, remplacement unitaire ou global (`Ctrl + F`, `Ctrl + H`).
+- **Historique (Annuler / Rétablir)** : Système complet de gestion des modifications (`Ctrl + Z`, `Ctrl + Y`).
+- **Persistance de session** : Restauration automatique de vos onglets ouverts lors de la relance de l'application.
+- **Interface multilingue** : Disponible en **Français**, **Anglais** et **Espagnol**.
+- **Mode Sombre / Clair** : Basculez facilement entre un thème sombre élégant et un thème clair lumineux.
 
 ---
 
-## Raccourcis clavier
+## Technologies utilisées
 
-| Raccourci | Action |
-|---|---|
-| `Ctrl+N` | Nouvel onglet |
-| `Ctrl+O` | Ouvrir un fichier |
-| `Ctrl+S` | Enregistrer |
-| `Ctrl+Shift+S` | Enregistrer sous |
-| `Ctrl+W` | Fermer l'onglet |
-| `Ctrl+F` | Rechercher |
-| `Ctrl+H` | Remplacer |
-| `F3` | Occurrence suivante |
-| `Echap` | Fermer la barre de recherche |
-| `Ctrl+Z` | Annuler |
-| `Ctrl+Y` | Retablir |
-| `Ctrl+Shift+Z` | Retablir |
-| `Ctrl+Tab` | Onglet suivant |
-| `Ctrl+Shift+Tab` | Onglet precedent |
+- **[Rust](https://www.rust-lang.org/)** : Langage de programmation système garantissant sécurité et rapidité.
+- **[egui / eframe](https://github.com/emilk/egui)** : Framework GUI immédiat et ultra-rapide pour Rust.
+- **[rfd](https://github.com/PolyMeilex/rfd)** : Dialogue de fichiers natifs multi-plateforme.
+- **[serde](https://serde.rs/)** : Sérialisation et désérialisation pour la gestion de session.
 
 ---
 
-## Captures
+## Structure du projet
 
-![Fenetre principale](images/logo.png)
+Voici l'arborescence et l'organisation des fichiers de la solution :
 
----
-
-## Installation
-
-### Installeur
-
-1. Telecharger `LechapesSetup.exe`.
-2. Executer, accepter les droits administrateur.
-3. L'application s'installe dans `C:\Program Files\Lechapes\`.
-4. Raccourcis crees dans le menu Demarrer et optionnellement sur le bureau.
-
-### Portable
-
-1. Telecharger `Lechapes-0.4.0-portable.zip`.
-2. Decompresser n'importe ou.
-3. Lancer `lechapes.exe`.
-
-Le dossier `images/` doit rester a cote de `lechapes.exe` pour que les icones s'affichent correctement.
-
----
-
-## Compilation depuis les sources
-
-### Prerequis
-
-- Windows 10 ou 11 (x86_64).
-- Rust via [rustup](https://rustup.rs).
-- Toolchain `gnullvm` (indispensable : la toolchain `gnu` provoque un crash au demarrage sur certaines configurations).
-
-```powershell
-rustup toolchain install stable-x86_64-pc-windows-gnullvm
-
-
+```text
 Lechapes/
-├── images/
+│
+├── images/                 # Ressources graphiques (logos, drapeaux, icônes, boutons)
+│   ├── drapeau_en.png
+│   ├── drapeau_es.png
+│   ├── drapeau_fr.png
 │   ├── logo.ico
 │   ├── logo.png
 │   ├── rafraichir.png
 │   ├── redo.png
 │   └── undo.png
-├── src/
-│   ├── app.rs           logique principale, barre de menu, editeur, raccourcis
-│   ├── buffer.rs        FileBuffer, encodage, undo/redo
-│   ├── explorer.rs      arborescence de fichiers
-│   ├── fs_ops.rs        operations fichier et dossier
-│   ├── i18n.rs          traductions FR / EN
-│   ├── main.rs          point d'entree, options de fenetre
-│   ├── persistence.rs   sauvegarde et restauration de session
-│   ├── search.rs        recherche et remplacement
-│   ├── tabs.rs          gestion des onglets
-│   └── theme.rs         theme clair/sombre, boutons image
-├── .gitignore
-├── Cargo.toml
-├── README.md
-└── rust-toolchain.toml
+│
+├── Installeur/             # Fichiers de configuration et scripts d'installation (Inno Setup)
+├── src/                    # Code source principal en Rust
+│   ├── app.rs              # Logique globale de l'application UI
+│   ├── buffer.rs           # Gestion des tampons de texte
+│   ├── explorer.rs         # Explorateur de fichiers latéral
+│   ├── fs_ops.rs           # Opérations système de fichiers (lecture/écriture)
+│   ├── i18n.rs             # Internationalisation (FR, EN, ES)
+│   ├── main.rs             # Point d'entrée de l'application
+│   ├── persistence.rs      # Sauvegarde et restauration de session
+│   ├── search.rs           # Algorithmes de recherche et remplacement
+│   ├── tabs.rs             # Gestion des onglets
+│   └── theme.rs            # Thèmes (clair / sombre)
+│
+├── .gitignore              # Fichiers et dossiers ignorés par Git
+├── Cargo.lock              # Versions exactes des dépendances Cargo
+├── Cargo.toml              # Configuration et métadonnées du projet Rust
+├── installer.iss           # Script de création de l'installateur Windows
+├── README.md               # Documentation du projet
+└── rust-toolchain.toml     # Configuration de la chaîne d'outils Rust
+
+
+```
+## Installation et Compilation
+### Prérequis
+Assurez-vous d'avoir installé **Rust** (version stable recommandée). Vous pouvez l'obtenir sur rustup.rs.
+### Compilation depuis les sources
+ 1. Clonez le dépôt :
+   ```bash
+   git clone [https://github.com/Johanes-mg/Lechapes.git](https://github.com/Johanes-mg/Lechapes.git)
+   cd Lechapes
+   
+   ```
+ 2. Compilez le projet en mode **release** (optimisé pour les performances) :
+   ```bash
+   cargo build --release
+   
+   ```
+ 3. L'exécutable généré se trouvera dans :
+   ```bash
+   target/release/lechapes.exe
+   
+   ```
+## Raccourcis Clavier Utiles
+| Raccourci | Action |
+|---|---|
+| Ctrl + N | Nouveau fichier |
+| Ctrl + O | Ouvrir un fichier |
+| Ctrl + S | Enregistrer |
+| Ctrl + Shift + S | Enregistrer sous |
+| Ctrl + W | Fermer l'onglet actif |
+| Ctrl + F | Rechercher |
+| Ctrl + H | Remplacer |
+| Ctrl + Z | Annuler |
+| Ctrl + Y / Ctrl + Shift + Z | Rétablir |
+| Ctrl + Tab | Passer à l'onglet suivant |
+## 👤 Auteur
+ * **Johanes-mg** — *Développeur principal* — Profil GitHub
+## 📄 Licence
+Ce projet est sous licence ouverte. Voir le fichier LICENSE pour plus de détails.
+```
+
+```

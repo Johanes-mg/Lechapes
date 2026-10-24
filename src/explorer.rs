@@ -10,6 +10,12 @@ pub struct Explorer {
     expanded: std::collections::HashSet<PathBuf>,
 }
 
+pub struct ExplorerAction {
+    pub open: Option<PathBuf>,
+    pub undo: bool,
+    pub redo: bool,
+}
+
 impl Explorer {
     pub fn new() -> Self {
         Self {
@@ -24,13 +30,30 @@ impl Explorer {
         self.expanded.clear();
     }
 
-    pub fn ui(&mut self, ui: &mut Ui, i18n: &I18n) -> Option<PathBuf> {
-        let mut clicked: Option<PathBuf> = None;
+    pub fn ui(&mut self, ui: &mut Ui, i18n: &I18n) -> ExplorerAction {
+        let mut action = ExplorerAction {
+            open: None,
+            undo: false,
+            redo: false,
+        };
+        let taille_bouton = 28.0;
+        let hauteur_barre = taille_bouton + ui.spacing().item_spacing.y;
         ui.horizontal(|ui| {
-            ui.heading(i18n.t("explorer"));
+            ui.set_min_height(hauteur_barre);
+            ui.label(
+                egui::RichText::new(i18n.t("explorer"))
+                    .size(16.0)
+                    .strong(),
+            );
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if theme::bouton_image_seule(ui, "rafraichir.png", 28.0, 16.0) {
+                if theme::bouton_image_seule(ui, "rafraichir.png", taille_bouton, 16.0) {
                     self.expanded.clear();
+                }
+                if theme::bouton_image_seule(ui, "redo.png", taille_bouton, 16.0) {
+                    action.redo = true;
+                }
+                if theme::bouton_image_seule(ui, "undo.png", taille_bouton, 16.0) {
+                    action.undo = true;
                 }
             });
         });
@@ -39,12 +62,12 @@ impl Explorer {
             .auto_shrink([false, false])
             .show(ui, |ui| {
                 if let Some(root) = self.root.clone() {
-                    self.draw_dir(ui, &root, &mut clicked);
+                    self.draw_dir(ui, &root, &mut action.open);
                 } else {
                     ui.label(i18n.t("no_file"));
                 }
             });
-        clicked
+        action
     }
 
     fn draw_dir(&mut self, ui: &mut Ui, path: &Path, clicked: &mut Option<PathBuf>) {
