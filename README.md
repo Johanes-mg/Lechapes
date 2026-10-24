@@ -3,7 +3,10 @@
 
 <div align="center">
 
-![Lechapes Logo](images/logo.png)
+<div align="center">
+  <img src="images/logo.png" alt="Lechapes Logo" width="120">
+</div>
+
 
 **Éditeur de texte léger, moderne et multi-onglets développé en Rust avec egui.**
 
