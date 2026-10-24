@@ -1,4 +1,4 @@
-```markdown
+
 # Lechapes
 
 <div align="center">
@@ -47,7 +47,7 @@
 
 Voici l'arborescence et l'organisation des fichiers de la solution :
 
-```text
+
 Lechapes/
 │
 ├── images/                 # Ressources graphiques (logos, drapeaux, icônes, boutons)
@@ -81,7 +81,6 @@ Lechapes/
 └── rust-toolchain.toml     # Configuration de la chaîne d'outils Rust
 
 
-```
 ## Installation et Compilation
 ### Prérequis
 Assurez-vous d'avoir installé **Rust** (version stable recommandée). Vous pouvez l'obtenir sur rustup.rs.
