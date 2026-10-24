@@ -9,6 +9,7 @@ mod persistence;
 mod search;
 mod tabs;
 mod theme;
+mod viewer;
 
 use app::LechapesApp;
 use std::sync::Arc;

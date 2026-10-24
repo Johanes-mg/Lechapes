@@ -6,6 +6,7 @@ use crate::persistence::{self, Session};
 use crate::search::{self, SearchMode, SearchState};
 use crate::tabs::TabsState;
 use crate::theme;
+use crate::viewer::{est_image, ImageViewer};
 use eframe::egui;
 use std::path::PathBuf;
 
@@ -14,6 +15,7 @@ pub struct LechapesApp {
     explorer: Explorer,
     tabs: TabsState,
     search: SearchState,
+    viewer: ImageViewer,
     status: String,
     pending_close: bool,
     pending_tab_close: Option<usize>,
@@ -22,6 +24,7 @@ pub struct LechapesApp {
     sombre: bool,
     about_open: bool,
     language_open: bool,
+    session_dirty: bool,
 }
 
 impl LechapesApp {
@@ -31,6 +34,7 @@ impl LechapesApp {
             explorer: Explorer::new(),
             tabs: TabsState::new(),
             search: SearchState::default(),
+            viewer: ImageViewer::new(),
             status: String::new(),
             pending_close: false,
             pending_tab_close: None,
@@ -39,9 +43,22 @@ impl LechapesApp {
             sombre: true,
             about_open: false,
             language_open: false,
+            session_dirty: false,
         };
 
-        if let Some(session) = persistence::load(&cc.egui_ctx) {
+        if let Some(session) = persistence::load() {
+            app.sombre = session.dark;
+            app.i18n.lang = match session.lang.as_str() {
+                "en" => Lang::En,
+                "es" => Lang::Es,
+                _ => Lang::Fr,
+            };
+            if let Some(root) = session.root.clone() {
+                let p = PathBuf::from(root);
+                if p.exists() && p.is_dir() {
+                    app.explorer.set_root(p);
+                }
+            }
             let paths = persistence::paths_from_session(&session);
             if !paths.is_empty() {
                 app.tabs.tabs.clear();
@@ -52,11 +69,16 @@ impl LechapesApp {
                     app.tabs.active = session.active.min(app.tabs.tabs.len() - 1);
                 }
             }
+            theme::configurer_style(&cc.egui_ctx, app.sombre);
+            theme::configurer_style_editeur(&cc.egui_ctx);
         }
         app
     }
 
     fn open_path(&mut self, path: PathBuf) {
+        if est_image(&path) {
+            return;
+        }
         for (i, t) in self.tabs.tabs.iter().enumerate() {
             if t.path.as_ref() == Some(&path) {
                 self.tabs.active = i;
@@ -93,6 +115,16 @@ impl LechapesApp {
         }
         self.focus_editor = true;
         self.status.clear();
+        self.session_dirty = true;
+    }
+
+    fn open_path_avec_ctx(&mut self, ctx: &egui::Context, path: PathBuf) {
+        if est_image(&path) {
+            self.viewer.ouvrir(ctx, path.to_string_lossy().to_string());
+            self.session_dirty = true;
+            return;
+        }
+        self.open_path(path);
     }
 
     fn save_tab(&mut self, index: usize) {
@@ -144,6 +176,7 @@ impl LechapesApp {
             Ok(_) => self.status.clear(),
             Err(e) => self.status = format!("{}: {}", self.i18n.t("error"), e),
         }
+        self.session_dirty = true;
     }
 
     fn request_close_tab(&mut self, index: usize) {
@@ -155,6 +188,7 @@ impl LechapesApp {
         }
         self.tabs.close_tab(index);
         self.focus_editor = true;
+        self.session_dirty = true;
     }
 
     fn undo(&mut self) {
@@ -195,7 +229,7 @@ impl LechapesApp {
                         egui::Key::N => self.new_file(),
                         egui::Key::O => {
                             if let Some(p) = rfd::FileDialog::new().pick_file() {
-                                self.open_path(p);
+                                self.open_path_avec_ctx(ctx, p);
                             }
                         }
                         egui::Key::W => {
@@ -216,6 +250,7 @@ impl LechapesApp {
                             if self.tabs.tabs.len() > 1 {
                                 self.tabs.active = (self.tabs.active + 1) % self.tabs.tabs.len();
                                 self.focus_editor = true;
+                                self.session_dirty = true;
                             }
                         }
                         _ => {}
@@ -235,6 +270,7 @@ impl LechapesApp {
                                     self.tabs.active - 1
                                 };
                                 self.focus_editor = true;
+                                self.session_dirty = true;
                             }
                         }
                         _ => {}
@@ -361,13 +397,14 @@ impl LechapesApp {
                     ui.menu_button(self.i18n.t("open"), |ui| {
                         if ui.button(self.i18n.t("open_file")).clicked() {
                             if let Some(p) = rfd::FileDialog::new().pick_file() {
-                                self.open_path(p);
+                                self.open_path_avec_ctx(ctx, p);
                             }
                             ui.close_menu();
                         }
                         if ui.button(self.i18n.t("open_folder")).clicked() {
                             if let Some(p) = rfd::FileDialog::new().pick_folder() {
                                 self.explorer.set_root(p);
+                                self.session_dirty = true;
                             }
                             ui.close_menu();
                         }
@@ -395,6 +432,7 @@ impl LechapesApp {
                         if change {
                             theme::configurer_style(ctx, self.sombre);
                             theme::configurer_style_editeur(ctx);
+                            self.session_dirty = true;
                         }
                         ui.separator();
                         if ui.button(self.i18n.t("change_language")).clicked() {
@@ -438,10 +476,12 @@ impl LechapesApp {
                             ui.horizontal(|ui| {
                                 if theme::bouton_image_seule(ui, img, 32.0, 20.0) {
                                     self.i18n.lang = lang;
+                                    self.session_dirty = true;
                                     close = true;
                                 }
                                 if ui.selectable_label(selected, self.i18n.t(key)).clicked() {
                                     self.i18n.lang = lang;
+                                    self.session_dirty = true;
                                     close = true;
                                 }
                             });
@@ -479,18 +519,11 @@ impl LechapesApp {
                         );
                     }
                     ui.add_space(10.0);
-                    ui.label(
-                        egui::RichText::new("Lechapes")
-                            .size(20.0)
-                            .strong(),
-                    );
+                    ui.label(egui::RichText::new("Lechapes").size(20.0).strong());
                     ui.add_space(4.0);
                     ui.label(self.i18n.t("about_desc"));
                     ui.add_space(10.0);
-                    ui.label(format!(
-                        "{} : Johanes-mg",
-                        self.i18n.t("about_author")
-                    ));
+                    ui.label(format!("{} : Johanes-mg", self.i18n.t("about_author")));
                     ui.add_space(4.0);
                     ui.hyperlink_to(
                         self.i18n.t("about_github"),
@@ -557,10 +590,12 @@ impl LechapesApp {
                         if ui.button("+").clicked() {
                             self.tabs.new_tab();
                             self.focus_editor = true;
+                            self.session_dirty = true;
                         }
                         if let Some(i) = to_activate {
                             self.tabs.active = i;
                             self.focus_editor = true;
+                            self.session_dirty = true;
                         }
                         if let Some(i) = to_close {
                             self.request_close_tab(i);
@@ -787,11 +822,7 @@ impl LechapesApp {
             .resizable(false)
             .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
             .show(ctx, |ui| {
-                ui.label(format!(
-                    "{} : {}",
-                    name,
-                    self.i18n.t("confirm_close_msg")
-                ));
+                ui.label(format!("{} : {}", name, self.i18n.t("confirm_close_msg")));
                 ui.horizontal(|ui| {
                     if ui.button(self.i18n.t("save")).clicked() {
                         self.save_tab(idx);
@@ -812,16 +843,12 @@ impl LechapesApp {
             self.tabs.close_tab(idx);
             self.pending_tab_close = None;
             self.focus_editor = true;
+            self.session_dirty = true;
         }
     }
 
-    fn save_session(&mut self, ctx: &egui::Context) {
-        let now = ctx.input(|i| i.time);
-        if now - self.last_session_save < 5.0 {
-            return;
-        }
-        self.last_session_save = now;
-        let session = Session {
+    fn build_session(&self) -> Session {
+        Session {
             open_paths: self
                 .tabs
                 .tabs
@@ -829,9 +856,30 @@ impl LechapesApp {
                 .filter_map(|t| t.path.as_ref().map(|p| p.to_string_lossy().to_string()))
                 .collect(),
             active: self.tabs.active,
+            root: self
+                .explorer
+                .root
+                .as_ref()
+                .map(|p| p.to_string_lossy().to_string()),
+            dark: self.sombre,
+            lang: match self.i18n.lang {
+                Lang::Fr => "fr".to_string(),
+                Lang::En => "en".to_string(),
+                Lang::Es => "es".to_string(),
+            },
             window_size: None,
-        };
-        persistence::save(ctx, &session);
+        }
+    }
+
+    fn save_session(&mut self, ctx: &egui::Context) {
+        let now = ctx.input(|i| i.time);
+        let fermeture = ctx.input(|i| i.viewport().close_requested());
+        if !fermeture && !self.session_dirty && now - self.last_session_save < 5.0 {
+            return;
+        }
+        self.last_session_save = now;
+        self.session_dirty = false;
+        persistence::save(&self.build_session());
     }
 }
 
@@ -863,7 +911,12 @@ impl eframe::App for LechapesApp {
                     self.redo();
                 }
                 if let Some(p) = action.open {
-                    self.open_path(p);
+                    if est_image(&p) {
+                        self.viewer.ouvrir(ctx, p.to_string_lossy().to_string());
+                        self.session_dirty = true;
+                    } else {
+                        self.open_path(p);
+                    }
                 }
             });
 
@@ -872,6 +925,7 @@ impl eframe::App for LechapesApp {
         self.handle_pending_tab_close(ctx);
         self.language_window(ctx);
         self.about_window(ctx);
+        self.viewer.ui(ctx);
         self.save_session(ctx);
     }
 }

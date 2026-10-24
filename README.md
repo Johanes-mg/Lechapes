@@ -119,9 +119,8 @@ Assurez-vous d'avoir installé **Rust** (version stable recommandée). Vous pouv
 | Ctrl + Y / Ctrl + Shift + Z | Rétablir |
 | Ctrl + Tab | Passer à l'onglet suivant |
 ## 👤 Auteur
- * **Johanes-mg** — *Développeur principal* — Profil GitHub
+ * **Johanes-mg** 
 ## 📄 Licence
 Ce projet est sous licence ouverte. Voir le fichier LICENSE pour plus de détails.
 ```
 
-```
