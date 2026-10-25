@@ -37,6 +37,40 @@
 
 ---
 
+## Aperçu de Lechapes
+
+<div align="center">
+
+### Menu principal
+
+![SHOOT1](captures/lechapes_1.png)
+
+### Mode Dark
+
+![SHOOT2](captures/lechapes_2.png)
+
+### Choix de langues
+
+![SHOOT3](captures/lechapes_3.png)
+
+### Choix de langues fr
+
+![SHOOT4](captures/lechapes_4.png)
+
+### Menu Principal fr
+
+![SHOOT5](captures/lechapes_5.png)
+
+### Visionneuse d'images integré 
+
+![SHOOT6](captures/lechapes_6.png)
+
+
+
+</div>
+
+---
+
 ## Technologies utilisées
 
 - **[Rust](https://www.rust-lang.org/)** : Langage de programmation système garantissant sécurité et rapidité.
