@@ -302,6 +302,7 @@ impl LechapesApp {
             tab.cursor = start;
             tab.scroll_to = Some(start);
         }
+        self.focus_editor = true;
     }
 
     fn replace_current(&mut self) {
@@ -909,6 +910,9 @@ impl eframe::App for LechapesApp {
                 }
                 if action.redo {
                     self.redo();
+                }
+                if action.modified {
+                    self.session_dirty = true;
                 }
                 if let Some(p) = action.open {
                     if est_image(&p) {

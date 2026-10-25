@@ -41,6 +41,7 @@ pub struct ExplorerAction {
     pub open: Option<PathBuf>,
     pub undo: bool,
     pub redo: bool,
+    pub modified: bool,
 }
 
 impl Explorer {
@@ -69,11 +70,11 @@ impl Explorer {
             open: None,
             undo: false,
             redo: false,
+            modified: false,
         };
         let taille_bouton = 28.0;
-        let hauteur_barre = taille_bouton + ui.spacing().item_spacing.y;
         ui.horizontal(|ui| {
-            ui.set_min_height(hauteur_barre);
+            ui.set_min_height(taille_bouton);
             ui.label(
                 egui::RichText::new(i18n.t("explorer"))
                     .size(16.0)
@@ -82,6 +83,7 @@ impl Explorer {
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if theme::bouton_image_seule(ui, "rafraichir.png", taille_bouton, 16.0) {
                     self.expanded.clear();
+                    action.modified = true;
                 }
                 if theme::bouton_image_seule(ui, "redo.png", taille_bouton, 16.0) {
                     action.redo = true;
@@ -92,53 +94,90 @@ impl Explorer {
             });
         });
         ui.separator();
-        ScrollArea::vertical()
-            .auto_shrink([false, false])
-            .show(ui, |ui| {
-                if let Some(root) = self.root.clone() {
-                    let root_resp = ui.label(
-                        egui::RichText::new(format!("\u{1F4C1} {}", root.to_string_lossy()))
-                            .strong()
-                            .color(ui.visuals().weak_text_color()),
-                    );
-                    if root_resp.secondary_clicked() {
-                        self.menu_fond(ui, &root);
-                    }
-                    self.draw_dir(ui, &root, &mut action.open);
-                } else {
-                    ui.label(i18n.t("no_file"));
-                }
-            });
 
-        self.dialogues(ui, i18n);
+        if let Some(root) = self.root.clone() {
+            ScrollArea::vertical()
+                .auto_shrink([false, false])
+                .id_source("explorer_scroll")
+                .show(ui, |ui| {
+                    let fond = ui.interact(
+                        ui.available_rect_before_wrap(),
+                        ui.id().with("fond_explorer"),
+                        egui::Sense::click(),
+                    );
+                    fond.context_menu(|ui| {
+                        self.menu_fond(ui, &root);
+                    });
+
+                    let (rect, resp) = ui.allocate_exact_size(
+                        egui::vec2(ui.available_width(), 22.0),
+                        egui::Sense::click(),
+                    );
+                    let painter = ui.painter();
+                    let mut x = rect.left() + 4.0;
+                    if let Some(tex) = theme::image(ui.ctx(), "explorer.png") {
+                        let taille = 16.0;
+                        let img_rect = egui::Rect::from_min_size(
+                            egui::pos2(x, rect.center().y - taille / 2.0),
+                            egui::vec2(taille, taille),
+                        );
+                        painter.image(
+                            tex.id(),
+                            img_rect,
+                            egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
+                            Color32::WHITE,
+                        );
+                        x += taille + 6.0;
+                    }
+                    painter.text(
+                        egui::pos2(x, rect.center().y),
+                        egui::Align2::LEFT_CENTER,
+                        root.to_string_lossy(),
+                        egui::FontId::proportional(13.0),
+                        ui.visuals().text_color(),
+                    );
+                    resp.context_menu(|ui| {
+                        self.menu_fond(ui, &root);
+                    });
+
+                    self.draw_dir(ui, &root, &mut action.open);
+                });
+        } else {
+            ui.label(i18n.t("no_file"));
+        }
+
+        if self.dialogues(ui, i18n) {
+            action.modified = true;
+        }
         action
     }
 
     fn menu_fond(&mut self, ui: &mut Ui, parent: &Path) {
-        ui.menu_button("Nouveau fichier", |ui| {
-            if ui.button("Creer").clicked() {
-                self.dialogue_nouveau = Some(DialogueNouveau {
-                    parent: parent.to_path_buf(),
-                    nom: String::from("nouveau_fichier.txt"),
-                    est_dossier: false,
-                });
-                ui.close_menu();
-            }
-        });
-        ui.menu_button("Nouveau dossier", |ui| {
-            if ui.button("Creer").clicked() {
-                self.dialogue_nouveau = Some(DialogueNouveau {
-                    parent: parent.to_path_buf(),
-                    nom: String::from("NouveauDossier"),
-                    est_dossier: true,
-                });
-                ui.close_menu();
-            }
-        });
+        if ui.button("Nouveau fichier").clicked() {
+            self.dialogue_nouveau = Some(DialogueNouveau {
+                parent: parent.to_path_buf(),
+                nom: String::from("nouveau_fichier.txt"),
+                est_dossier: false,
+            });
+            ui.close_menu();
+        }
+        if ui.button("Nouveau dossier").clicked() {
+            self.dialogue_nouveau = Some(DialogueNouveau {
+                parent: parent.to_path_buf(),
+                nom: String::from("NouveauDossier"),
+                est_dossier: true,
+            });
+            ui.close_menu();
+        }
         ui.separator();
         if let Some(pp) = self.presse_papier.clone() {
             if ui
-                .button(format!("Coller ({})", pp.file_name().map(|s| s.to_string_lossy().to_string()).unwrap_or_default()))
+                .button(format!(
+                    "Coller ({})",
+                    pp.file_name()
+                        .map(|s| s.to_string_lossy().to_string())
+                        .unwrap_or_default()
+                ))
                 .clicked()
             {
                 match fs_ops::copier(&pp, parent) {
@@ -221,7 +260,12 @@ impl Explorer {
         ui.separator();
         if let Some(pp) = self.presse_papier.clone() {
             if ui
-                .button(format!("Coller ici ({})", pp.file_name().map(|s| s.to_string_lossy().to_string()).unwrap_or_default()))
+                .button(format!(
+                    "Coller ici ({})",
+                    pp.file_name()
+                        .map(|s| s.to_string_lossy().to_string())
+                        .unwrap_or_default()
+                ))
                 .clicked()
             {
                 match fs_ops::copier(&pp, chemin) {
@@ -298,12 +342,10 @@ impl Explorer {
                         self.expanded.insert(id);
                     }
                 }
-                if header.header_response.secondary_clicked() {
+                header.header_response.context_menu(|ui| {
                     self.selected = Some(entry.clone());
-                    header.header_response.context_menu(|ui| {
-                        self.menu_dossier(ui, &entry);
-                    });
-                }
+                    self.menu_dossier(ui, &entry);
+                });
             } else {
                 let selected = self.selected.as_ref() == Some(&entry);
                 let resp = ui.selectable_label(selected, &name);
@@ -311,18 +353,18 @@ impl Explorer {
                     self.selected = Some(entry.clone());
                     *clicked = Some(entry.clone());
                 }
-                if resp.secondary_clicked() {
+                resp.context_menu(|ui| {
                     self.selected = Some(entry.clone());
-                    resp.context_menu(|ui| {
-                        self.menu_fichier(ui, &entry);
-                    });
-                }
+                    self.menu_fichier(ui, &entry);
+                });
             }
         }
     }
 
-    fn dialogues(&mut self, ui: &mut Ui, i18n: &I18n) {
+    fn dialogues(&mut self, ui: &mut Ui, i18n: &I18n) -> bool {
         let ctx = ui.ctx().clone();
+        let mut modifie = false;
+
         if let Some(err) = self.message_erreur.clone() {
             let mut open = true;
             egui::Window::new("Erreur")
@@ -341,7 +383,11 @@ impl Explorer {
         if let Some(d) = &mut self.dialogue_nouveau {
             let mut valider = false;
             let mut annuler = false;
-            let titre = if d.est_dossier { "Nouveau dossier" } else { "Nouveau fichier" };
+            let titre = if d.est_dossier {
+                "Nouveau dossier"
+            } else {
+                "Nouveau fichier"
+            };
             egui::Window::new(titre)
                 .collapsible(false)
                 .resizable(false)
@@ -372,6 +418,7 @@ impl Explorer {
                     Ok(_) => {
                         self.expanded.clear();
                         self.dialogue_nouveau = None;
+                        modifie = true;
                     }
                     Err(e) => self.message_erreur = Some(e),
                 }
@@ -408,6 +455,7 @@ impl Explorer {
                     Ok(_) => {
                         self.expanded.clear();
                         self.dialogue_renommer = None;
+                        modifie = true;
                     }
                     Err(e) => self.message_erreur = Some(e),
                 }
@@ -429,7 +477,10 @@ impl Explorer {
                     ui.set_min_width(420.0);
                     ui.label(format!(
                         "Deplacer : {}",
-                        d.cible.file_name().map(|s| s.to_string_lossy().to_string()).unwrap_or_default()
+                        d.cible
+                            .file_name()
+                            .map(|s| s.to_string_lossy().to_string())
+                            .unwrap_or_default()
                     ));
                     ui.horizontal(|ui| {
                         ui.label("Destination :");
@@ -462,6 +513,7 @@ impl Explorer {
                         Ok(_) => {
                             self.expanded.clear();
                             self.dialogue_deplacer = None;
+                            modifie = true;
                         }
                         Err(e) => self.message_erreur = Some(e),
                     }
@@ -496,7 +548,10 @@ impl Explorer {
                     });
                     ui.horizontal(|ui| {
                         if ui
-                            .button(egui::RichText::new("Supprimer").color(Color32::from_rgb(220, 90, 90)))
+                            .button(
+                                egui::RichText::new("Supprimer")
+                                    .color(Color32::from_rgb(220, 90, 90)),
+                            )
                             .clicked()
                         {
                             valider = true;
@@ -519,6 +574,7 @@ impl Explorer {
                             self.selected = None;
                         }
                         self.dialogue_supprimer = None;
+                        modifie = true;
                     }
                     Err(e) => self.message_erreur = Some(e),
                 }
@@ -529,5 +585,6 @@ impl Explorer {
         }
 
         let _ = i18n;
+        modifie
     }
 }

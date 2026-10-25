@@ -131,7 +131,11 @@ pub fn bouton_image_texte(
 
 pub fn bouton_image_seule(ui: &mut egui::Ui, fichier: &str, taille: f32, taille_icone: f32) -> bool {
     let ctx = ui.ctx().clone();
-    let (rect, resp) = ui.allocate_exact_size(egui::vec2(taille, taille), egui::Sense::click());
+    let (rect, resp) = ui
+        .push_id(fichier, |ui| {
+            ui.allocate_exact_size(egui::vec2(taille, taille), egui::Sense::click())
+        })
+        .inner;
     let fond = if resp.hovered() {
         ui.visuals().widgets.hovered.bg_fill
     } else {
