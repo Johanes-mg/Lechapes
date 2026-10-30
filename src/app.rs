@@ -127,35 +127,163 @@ impl LechapesApp {
         self.open_path(path);
     }
 
+    fn run_formatter(path: &PathBuf) -> Result<bool, String> {
+        let extension = path
+            .extension()
+            .and_then(|value| value.to_str())
+            .unwrap_or_default()
+            .to_ascii_lowercase();
+
+        if extension == "rs" {
+            let output = std::process::Command::new("rustfmt")
+                .args(["--edition", "2021"])
+                .arg(path)
+                .output()
+                .map_err(|error| format!("Impossible de lancer rustfmt : {}", error))?;
+            if !output.status.success() {
+                let detail = String::from_utf8_lossy(&output.stderr).trim().to_string();
+                return Err(if detail.is_empty() {
+                    format!("rustfmt a echoue (code {}).", output.status)
+                } else {
+                    format!("rustfmt : {}", detail)
+                });
+            }
+            return Ok(true);
+        }
+
+        let formattable = matches!(
+            extension.as_str(),
+            "js" | "jsx" | "cjs" | "mjs" | "ts" | "tsx" | "cts" | "mts"
+                | "json" | "jsonc" | "html" | "htm" | "css" | "scss" | "less"
+                | "md" | "mdx" | "yaml" | "yml" | "graphql" | "gql" | "vue" | "svelte"
+                | "astro"
+        );
+        if !formattable {
+            return Ok(false);
+        }
+
+        let output = std::process::Command::new("npx")
+            .args(["--yes", "prettier", "--write"])
+            .arg(path)
+            .output()
+            .map_err(|error| format!("Impossible de lancer npx : {}", error))?;
+
+        if !output.status.success() {
+            let detail = String::from_utf8_lossy(&output.stderr).trim().to_string();
+            let detail = if detail.is_empty() {
+                String::from_utf8_lossy(&output.stdout).trim().to_string()
+            } else {
+                detail
+            };
+            return Err(if detail.is_empty() {
+                format!("Prettier a echoue (code {}).", output.status)
+            } else {
+                format!("Prettier : {}", detail)
+            });
+        }
+        Ok(true)
+    }
+
+    fn format_active_file(&mut self) {
+        let Some(tab) = self.tabs.active_tab() else {
+            self.status = "Aucun fichier a formater".to_string();
+            return;
+        };
+        let Some(path) = tab.path.clone() else {
+            self.status = "Enregistre d'abord le fichier pour le formater".to_string();
+            return;
+        };
+        let bytes = tab.buffer.to_bytes();
+        if let Err(error) = fs_ops::write_bytes(&path, &bytes) {
+            self.status = format!("Ecriture impossible : {}", error);
+            return;
+        }
+        match Self::run_formatter(&path) {
+            Ok(true) => match fs_ops::read_bytes(&path) {
+                Ok(formatted) => {
+                    if let Some(tab) = self.tabs.active_tab_mut() {
+                        let before = tab.buffer.text.clone();
+                        tab.buffer = crate::buffer::FileBuffer::from_bytes(&formatted);
+                        tab.buffer.push_snapshot_after_change(before);
+                        tab.dirty = false;
+                        tab.cursor = tab.cursor.min(tab.buffer.text.len());
+                    }
+                    self.status = "Fichier formate".to_string();
+                }
+                Err(error) => self.status = format!("Formatage effectue, relecture impossible : {}", error),
+            },
+            Ok(false) => {
+                self.status = format!(
+                    "Aucun formateur configure pour l'extension .{}",
+                    path.extension().and_then(|e| e.to_str()).unwrap_or("?")
+                );
+            }
+            Err(error) => self.status = error,
+        }
+    }
+
     fn save_tab(&mut self, index: usize) {
-        let Some(tab) = self.tabs.tabs.get_mut(index) else {
+        let Some(tab) = self.tabs.tabs.get(index) else {
             return;
         };
         let Some(path) = tab.path.clone() else {
             self.save_tab_as(index);
             return;
         };
-        match fs_ops::write_bytes(&path, &tab.buffer.to_bytes()) {
+        let bytes = tab.buffer.to_bytes();
+        match fs_ops::write_bytes(&path, &bytes) {
             Ok(_) => {
-                tab.dirty = false;
-                self.status.clear();
+                let format_result = Self::run_formatter(&path);
+                match fs_ops::read_bytes(&path) {
+                    Ok(saved_bytes) => {
+                        if let Some(tab) = self.tabs.tabs.get_mut(index) {
+                            tab.buffer = crate::buffer::FileBuffer::from_bytes(&saved_bytes);
+                            tab.dirty = false;
+                        }
+                        self.status = match format_result {
+                            Ok(true) => "Fichier enregistre et formate".to_string(),
+                            Ok(false) => "Fichier enregistre".to_string(),
+                            Err(error) => format!("Fichier enregistre, formatage impossible : {}", error),
+                        };
+                    }
+                    Err(error) => {
+                        self.status = format!("Fichier enregistre, relecture impossible : {}", error);
+                    }
+                }
             }
-            Err(e) => self.status = format!("{}: {}", self.i18n.t("error"), e),
+            Err(error) => self.status = format!("{}: {}", self.i18n.t("error"), error),
         }
     }
 
     fn save_tab_as(&mut self, index: usize) {
-        let Some(tab) = self.tabs.tabs.get_mut(index) else {
+        let Some(tab) = self.tabs.tabs.get(index) else {
             return;
         };
+        let bytes = tab.buffer.to_bytes();
         if let Some(path) = rfd::FileDialog::new().save_file() {
-            match fs_ops::write_bytes(&path, &tab.buffer.to_bytes()) {
+            match fs_ops::write_bytes(&path, &bytes) {
                 Ok(_) => {
-                    tab.path = Some(path);
-                    tab.dirty = false;
-                    self.status.clear();
+                    let format_result = Self::run_formatter(&path);
+                    match fs_ops::read_bytes(&path) {
+                        Ok(saved_bytes) => {
+                            if let Some(tab) = self.tabs.tabs.get_mut(index) {
+                                tab.buffer = crate::buffer::FileBuffer::from_bytes(&saved_bytes);
+                                tab.path = Some(path);
+                                tab.dirty = false;
+                            }
+                            self.status = match format_result {
+                                Ok(true) => "Fichier enregistre et formate".to_string(),
+                                Ok(false) => "Fichier enregistre".to_string(),
+                                Err(error) => format!("Fichier enregistre, formatage impossible : {}", error),
+                            };
+                        }
+                        Err(error) => {
+                            self.status = format!("Fichier enregistre, relecture impossible : {}", error);
+                        }
+                    }
+                    self.session_dirty = true;
                 }
-                Err(e) => self.status = format!("{}: {}", self.i18n.t("error"), e),
+                Err(error) => self.status = format!("{}: {}", self.i18n.t("error"), error),
             }
         }
     }
@@ -192,20 +320,34 @@ impl LechapesApp {
     }
 
     fn undo(&mut self) {
+        let mut modifie = false;
         if let Some(tab) = self.tabs.active_tab_mut() {
-            if tab.buffer.undo() {
+            modifie = tab.buffer.undo();
+            if modifie {
                 tab.dirty = true;
             }
         }
+        self.status = if modifie {
+            String::new()
+        } else {
+            "Rien a annuler".to_string()
+        };
         self.focus_editor = true;
     }
 
     fn redo(&mut self) {
+        let mut modifie = false;
         if let Some(tab) = self.tabs.active_tab_mut() {
-            if tab.buffer.redo() {
+            modifie = tab.buffer.redo();
+            if modifie {
                 tab.dirty = true;
             }
         }
+        self.status = if modifie {
+            String::new()
+        } else {
+            "Rien a retablir".to_string()
+        };
         self.focus_editor = true;
     }
 
@@ -285,7 +427,7 @@ impl LechapesApp {
     }
 
     fn search_next(&mut self) {
-        let Some(tab) = self.tabs.active_tab() else {
+        let Some(tab) = self.tabs.active_tab_mut() else {
             return;
         };
         let matches = search::find_all(
@@ -294,15 +436,28 @@ impl LechapesApp {
             self.search.case_sensitive,
         );
         if matches.is_empty() {
+            self.status = "Aucune correspondance trouvee".to_string();
             return;
         }
-        self.search.match_index = (self.search.match_index + 1) % matches.len();
-        let start = matches[self.search.match_index].start;
-        if let Some(tab) = self.tabs.active_tab_mut() {
-            tab.cursor = start;
-            tab.scroll_to = Some(start);
-        }
+        self.search.match_index = if self.search.match_index >= matches.len() {
+            0
+        } else {
+            (self.search.match_index + 1) % matches.len()
+        };
+        let m = &matches[self.search.match_index];
+        tab.cursor = m.start;
+        tab.scroll_to = Some(m.start);
         self.focus_editor = true;
+        let prefix = &tab.buffer.text[..m.start];
+        let ligne = prefix.bytes().filter(|b| *b == b'\n').count() + 1;
+        let colonne = prefix.rsplit('\n').next().unwrap_or("").chars().count() + 1;
+        self.status = format!(
+            "Occurrence {} sur {} — ligne {}, colonne {}",
+            self.search.match_index + 1,
+            matches.len(),
+            ligne,
+            colonne
+        );
     }
 
     fn replace_current(&mut self) {
@@ -317,8 +472,12 @@ impl LechapesApp {
         if matches.is_empty() {
             return;
         }
-        let idx = self.search.match_index.min(matches.len() - 1);
-        let m = &matches[idx];
+        let idx = if self.search.match_index == usize::MAX {
+            0
+        } else {
+            self.search.match_index.min(matches.len() - 1)
+        };
+        let m = matches[idx].clone();
         let start = m.start;
         let end = m.end;
         let before = tab.buffer.text.clone();
@@ -327,6 +486,7 @@ impl LechapesApp {
             .replace_range(start..end, &self.search.replacement);
         tab.buffer.push_snapshot_after_change(before);
         tab.dirty = true;
+        self.search.match_index = usize::MAX;
         self.search_next();
     }
 
@@ -355,6 +515,7 @@ impl LechapesApp {
         tab.buffer.text = result;
         tab.buffer.push_snapshot_after_change(before);
         tab.dirty = true;
+        self.search.match_index = usize::MAX;
     }
 
     fn top_bar(&mut self, ctx: &egui::Context) {
@@ -448,6 +609,10 @@ impl LechapesApp {
                         }
                     });
                 });
+                ui.separator();
+                if ui.button(self.i18n.t("format")).on_hover_text("Formater le fichier ouvert (Prettier ou rustfmt)").clicked() {
+                    self.format_active_file();
+                }
             });
         });
     }
@@ -457,9 +622,11 @@ impl LechapesApp {
             return;
         }
         let mut close = false;
+        let mut window_open = true;
         egui::Window::new(self.i18n.t("change_language"))
             .collapsible(false)
             .resizable(false)
+            .open(&mut window_open)
             .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
             .show(ctx, |ui| {
                 ui.set_min_width(260.0);
@@ -494,7 +661,7 @@ impl LechapesApp {
                     close = true;
                 }
             });
-        if close {
+        if close || !window_open {
             self.language_open = false;
         }
     }
@@ -504,9 +671,11 @@ impl LechapesApp {
             return;
         }
         let mut close = false;
+        let mut window_open = true;
         egui::Window::new(self.i18n.t("about"))
             .collapsible(false)
             .resizable(false)
+            .open(&mut window_open)
             .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
             .show(ctx, |ui| {
                 ui.set_min_width(320.0);
@@ -536,7 +705,7 @@ impl LechapesApp {
                     }
                 });
             });
-        if close {
+        if close || !window_open {
             self.about_open = false;
         }
     }
@@ -618,11 +787,16 @@ impl LechapesApp {
                     self.i18n.t("find")
                 };
                 ui.label(mode_label);
-                ui.add(
-                    egui::TextEdit::singleline(&mut self.search.query)
-                        .hint_text(self.i18n.t("search_hint"))
-                        .desired_width(220.0),
-                );
+                let query_changed = ui
+                    .add(
+                        egui::TextEdit::singleline(&mut self.search.query)
+                            .hint_text(self.i18n.t("search_hint"))
+                            .desired_width(220.0),
+                    )
+                    .changed();
+                if query_changed {
+                    self.search.match_index = usize::MAX;
+                }
                 if self.search.mode == SearchMode::Replace {
                     ui.label("->");
                     ui.add(
@@ -631,7 +805,21 @@ impl LechapesApp {
                             .desired_width(220.0),
                     );
                 }
-                ui.checkbox(&mut self.search.case_sensitive, self.i18n.t("case_sensitive"));
+                if ui
+                    .checkbox(&mut self.search.case_sensitive, self.i18n.t("case_sensitive"))
+                    .changed()
+                {
+                    self.search.match_index = usize::MAX;
+                }
+                let nombre = self.tabs.active_tab().map(|tab| {
+                    search::find_all(
+                        &tab.buffer.text,
+                        &self.search.query,
+                        self.search.case_sensitive,
+                    )
+                    .len()
+                }).unwrap_or(0);
+                ui.label(format!("{} resultat(s)", nombre));
                 if ui.button(self.i18n.t("find_next")).clicked() {
                     self.search_next();
                 }
@@ -647,6 +835,70 @@ impl LechapesApp {
                     self.search.open = false;
                 }
             });
+
+            let resultats: Vec<(usize, usize, usize, usize, String)> =
+                if let Some(tab) = self.tabs.active_tab() {
+                    if self.search.query.is_empty() {
+                        Vec::new()
+                    } else {
+                        search::find_all(
+                            &tab.buffer.text,
+                            &self.search.query,
+                            self.search.case_sensitive,
+                        )
+                        .into_iter()
+                        .enumerate()
+                        .map(|(index, range)| {
+                            let prefix = &tab.buffer.text[..range.start];
+                            let ligne = prefix.bytes().filter(|b| *b == b'\n').count() + 1;
+                            let colonne = prefix.rsplit('\n').next().unwrap_or("").chars().count() + 1;
+                            let debut_ligne = prefix.rfind('\n').map(|p| p + 1).unwrap_or(0);
+                            let fin_ligne = tab.buffer.text[range.end..]
+                                .find('\n')
+                                .map(|p| range.end + p)
+                                .unwrap_or(tab.buffer.text.len());
+                            let extrait = tab.buffer.text[debut_ligne..fin_ligne].trim().to_string();
+                            (index, range.start, ligne, colonne, extrait)
+                        })
+                        .collect()
+                    }
+                } else {
+                    Vec::new()
+                };
+
+            if !resultats.is_empty() {
+                ui.separator();
+                let fichier_actif = self.tabs.active_tab().map(|tab| {
+                    tab.path
+                        .as_ref()
+                        .map(|path| path.to_string_lossy().to_string())
+                        .unwrap_or_else(|| self.i18n.t("untitled").to_string())
+                }).unwrap_or_default();
+                ui.label(format!("{} — {} emplacement(s) :", fichier_actif, resultats.len()));
+                egui::ScrollArea::vertical()
+                    .id_source("search_locations")
+                    .max_height(150.0)
+                    .show(ui, |ui| {
+                        for (index, byte_pos, ligne, colonne, extrait) in &resultats {
+                            let selectionne = *index == self.search.match_index;
+                            let label = format!(
+                                "{}  |  ligne {}, colonne {}  |  {}",
+                                index + 1,
+                                ligne,
+                                colonne,
+                                extrait
+                            );
+                            if ui.selectable_label(selectionne, label).clicked() {
+                                self.search.match_index = *index;
+                                if let Some(tab) = self.tabs.active_tab_mut() {
+                                    tab.cursor = *byte_pos;
+                                    tab.scroll_to = Some(*byte_pos);
+                                }
+                                self.focus_editor = true;
+                            }
+                        }
+                    });
+            }
         });
     }
 
@@ -708,6 +960,20 @@ impl LechapesApp {
                 }
 
                 let editor_id = egui::Id::new(("editor_text", tab_id));
+                let texte_avant = tab.buffer.text.clone();
+                if let Some(byte_cursor) = tab.scroll_to.take() {
+                    let mut byte_cursor = byte_cursor.min(tab.buffer.text.len());
+                    while !tab.buffer.text.is_char_boundary(byte_cursor) {
+                        byte_cursor -= 1;
+                    }
+                    let char_cursor = tab.buffer.text[..byte_cursor].chars().count();
+                    let mut state = egui::text_edit::TextEditState::load(ctx, editor_id)
+                        .unwrap_or_default();
+                    state.cursor.set_char_range(Some(
+                        egui::text::CCursorRange::one(egui::text::CCursor::new(char_cursor)),
+                    ));
+                    state.store(ctx, editor_id);
+                }
                 let hauteur = ui.available_height();
                 let largeur_totale = ui.available_width();
 
@@ -754,7 +1020,9 @@ impl LechapesApp {
                             ui.visuals_mut().extreme_bg_color = ancienne_couleur;
 
                             if resp.changed() {
+                                tab.buffer.push_snapshot_after_change(texte_avant);
                                 tab.dirty = true;
+                                self.search.match_index = usize::MAX;
                             }
                             if self.focus_editor {
                                 resp.request_focus();
@@ -774,9 +1042,11 @@ impl LechapesApp {
         }
         let mut confirmed = false;
         let mut cancelled = false;
+        let mut window_open = true;
         egui::Window::new(self.i18n.t("confirm_close"))
             .collapsible(false)
             .resizable(false)
+            .open(&mut window_open)
             .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
             .show(ctx, |ui| {
                 ui.label(self.i18n.t("confirm_close_msg"));
@@ -787,7 +1057,10 @@ impl LechapesApp {
                                 self.save_tab(i);
                             }
                         }
-                        confirmed = true;
+                        confirmed = !self.tabs.any_dirty();
+                        if !confirmed {
+                            self.status = "Fermeture annulee : certains fichiers restent non enregistres".to_string();
+                        }
                     }
                     if ui.button(self.i18n.t("quit_no_save")).clicked() {
                         confirmed = true;
@@ -797,7 +1070,7 @@ impl LechapesApp {
                     }
                 });
             });
-        if cancelled {
+        if cancelled || !window_open {
             self.pending_close = false;
         }
         if confirmed {
@@ -812,6 +1085,7 @@ impl LechapesApp {
         };
         let mut confirmed = false;
         let mut cancelled = false;
+        let mut window_open = true;
         let name = self
             .tabs
             .tabs
@@ -821,13 +1095,17 @@ impl LechapesApp {
         egui::Window::new(self.i18n.t("confirm_close"))
             .collapsible(false)
             .resizable(false)
+            .open(&mut window_open)
             .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
             .show(ctx, |ui| {
                 ui.label(format!("{} : {}", name, self.i18n.t("confirm_close_msg")));
                 ui.horizontal(|ui| {
                     if ui.button(self.i18n.t("save")).clicked() {
                         self.save_tab(idx);
-                        confirmed = true;
+                        confirmed = self.tabs.tabs.get(idx).is_some_and(|tab| !tab.dirty);
+                        if !confirmed {
+                            self.status = "Onglet conserve : enregistrement non termine".to_string();
+                        }
                     }
                     if ui.button(self.i18n.t("quit_no_save")).clicked() {
                         confirmed = true;
@@ -837,7 +1115,7 @@ impl LechapesApp {
                     }
                 });
             });
-        if cancelled {
+        if cancelled || !window_open {
             self.pending_tab_close = None;
         }
         if confirmed {
@@ -913,6 +1191,9 @@ impl eframe::App for LechapesApp {
                 }
                 if action.modified {
                     self.session_dirty = true;
+                }
+                if action.refreshed {
+                    self.status = "Explorateur actualise".to_string();
                 }
                 if let Some(p) = action.open {
                     if est_image(&p) {

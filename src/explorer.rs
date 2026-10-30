@@ -42,6 +42,7 @@ pub struct ExplorerAction {
     pub undo: bool,
     pub redo: bool,
     pub modified: bool,
+    pub refreshed: bool,
 }
 
 impl Explorer {
@@ -71,6 +72,7 @@ impl Explorer {
             undo: false,
             redo: false,
             modified: false,
+            refreshed: false,
         };
         let taille_bouton = 28.0;
         ui.horizontal(|ui| {
@@ -82,8 +84,16 @@ impl Explorer {
             );
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if theme::bouton_image_seule(ui, "rafraichir.png", taille_bouton, 16.0) {
+                    let racine_invalide = self.root.as_ref().is_some_and(|root| !root.is_dir());
+                    if racine_invalide {
+                        self.root = None;
+                        self.selected = None;
+                    } else if self.selected.as_ref().is_some_and(|path| !path.exists()) {
+                        self.selected = None;
+                    }
                     self.expanded.clear();
                     action.modified = true;
+                    action.refreshed = true;
                 }
                 if theme::bouton_image_seule(ui, "redo.png", taille_bouton, 16.0) {
                     action.redo = true;
@@ -191,7 +201,10 @@ impl Explorer {
             }
         }
         if ui.button("Rafraichir").clicked() {
-            self.expanded.clear();
+            self.expanded.retain(|path| path.is_dir());
+            if self.selected.as_ref().is_some_and(|path| !path.exists()) {
+                self.selected = None;
+            }
             ui.close_menu();
         }
     }
@@ -378,11 +391,15 @@ impl Explorer {
                         self.message_erreur = None;
                     }
                 });
+            if !open {
+                self.message_erreur = None;
+            }
         }
 
         if let Some(d) = &mut self.dialogue_nouveau {
             let mut valider = false;
             let mut annuler = false;
+            let mut window_open = true;
             let titre = if d.est_dossier {
                 "Nouveau dossier"
             } else {
@@ -391,6 +408,7 @@ impl Explorer {
             egui::Window::new(titre)
                 .collapsible(false)
                 .resizable(false)
+                .open(&mut window_open)
                 .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
                 .show(&ctx, |ui| {
                     ui.set_min_width(320.0);
@@ -407,6 +425,9 @@ impl Explorer {
                         }
                     });
                 });
+            if !window_open {
+                annuler = true;
+            }
             if valider {
                 let cible = d.parent.join(&d.nom);
                 let res = if d.est_dossier {
@@ -431,9 +452,11 @@ impl Explorer {
         if let Some(d) = &mut self.dialogue_renommer {
             let mut valider = false;
             let mut annuler = false;
+            let mut window_open = true;
             egui::Window::new("Renommer")
                 .collapsible(false)
                 .resizable(false)
+                .open(&mut window_open)
                 .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
                 .show(&ctx, |ui| {
                     ui.set_min_width(360.0);
@@ -450,6 +473,9 @@ impl Explorer {
                         }
                     });
                 });
+            if !window_open {
+                annuler = true;
+            }
             if valider {
                 match fs_ops::renommer(&d.cible, &d.nom) {
                     Ok(_) => {
@@ -469,9 +495,11 @@ impl Explorer {
             let mut valider = false;
             let mut annuler = false;
             let mut choisir = false;
+            let mut window_open = true;
             egui::Window::new("Deplacer")
                 .collapsible(false)
                 .resizable(false)
+                .open(&mut window_open)
                 .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
                 .show(&ctx, |ui| {
                     ui.set_min_width(420.0);
@@ -502,6 +530,9 @@ impl Explorer {
                         }
                     });
                 });
+            if !window_open {
+                annuler = true;
+            }
             if choisir {
                 if let Some(dest) = rfd::FileDialog::new().pick_folder() {
                     d.destination = Some(dest);
@@ -529,6 +560,7 @@ impl Explorer {
         if let Some(d) = &mut self.dialogue_supprimer {
             let mut valider = false;
             let mut annuler = false;
+            let mut window_open = true;
             let nom = d
                 .cible
                 .file_name()
@@ -537,6 +569,7 @@ impl Explorer {
             egui::Window::new("Supprimer")
                 .collapsible(false)
                 .resizable(false)
+                .open(&mut window_open)
                 .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
                 .show(&ctx, |ui| {
                     ui.set_min_width(400.0);
@@ -561,6 +594,9 @@ impl Explorer {
                         }
                     });
                 });
+            if !window_open {
+                annuler = true;
+            }
             if valider {
                 let res = if d.definitif {
                     fs_ops::supprimer_definitif(&d.cible)
