@@ -3,6 +3,7 @@ use crate::explorer::Explorer;
 use crate::fs_ops;
 use crate::i18n::{I18n, Lang};
 use crate::persistence::{self, Session};
+use crate::plugins::Plugins;
 use crate::search::{self, SearchMode, SearchState};
 use crate::tabs::TabsState;
 use crate::theme;
@@ -25,6 +26,8 @@ pub struct LechapesApp {
     about_open: bool,
     language_open: bool,
     session_dirty: bool,
+    plugins: Plugins,
+    focus_search: bool,
 }
 
 impl LechapesApp {
@@ -44,6 +47,8 @@ impl LechapesApp {
             about_open: false,
             language_open: false,
             session_dirty: false,
+            plugins: Plugins::default(),
+            focus_search: false,
         };
 
         if let Some(session) = persistence::load() {
@@ -128,60 +133,7 @@ impl LechapesApp {
     }
 
     fn run_formatter(path: &PathBuf) -> Result<bool, String> {
-        let extension = path
-            .extension()
-            .and_then(|value| value.to_str())
-            .unwrap_or_default()
-            .to_ascii_lowercase();
-
-        if extension == "rs" {
-            let output = std::process::Command::new("rustfmt")
-                .args(["--edition", "2021"])
-                .arg(path)
-                .output()
-                .map_err(|error| format!("Impossible de lancer rustfmt : {}", error))?;
-            if !output.status.success() {
-                let detail = String::from_utf8_lossy(&output.stderr).trim().to_string();
-                return Err(if detail.is_empty() {
-                    format!("rustfmt a echoue (code {}).", output.status)
-                } else {
-                    format!("rustfmt : {}", detail)
-                });
-            }
-            return Ok(true);
-        }
-
-        let formattable = matches!(
-            extension.as_str(),
-            "js" | "jsx" | "cjs" | "mjs" | "ts" | "tsx" | "cts" | "mts"
-                | "json" | "jsonc" | "html" | "htm" | "css" | "scss" | "less"
-                | "md" | "mdx" | "yaml" | "yml" | "graphql" | "gql" | "vue" | "svelte"
-                | "astro"
-        );
-        if !formattable {
-            return Ok(false);
-        }
-
-        let output = std::process::Command::new("npx")
-            .args(["--yes", "prettier", "--write"])
-            .arg(path)
-            .output()
-            .map_err(|error| format!("Impossible de lancer npx : {}", error))?;
-
-        if !output.status.success() {
-            let detail = String::from_utf8_lossy(&output.stderr).trim().to_string();
-            let detail = if detail.is_empty() {
-                String::from_utf8_lossy(&output.stdout).trim().to_string()
-            } else {
-                detail
-            };
-            return Err(if detail.is_empty() {
-                format!("Prettier a echoue (code {}).", output.status)
-            } else {
-                format!("Prettier : {}", detail)
-            });
-        }
-        Ok(true)
+        Plugins::format_file(path)
     }
 
     fn format_active_file(&mut self) {
@@ -381,10 +333,12 @@ impl LechapesApp {
                         egui::Key::F => {
                             self.search.open = true;
                             self.search.mode = SearchMode::Find;
+                            self.focus_search = true;
                         }
                         egui::Key::H => {
                             self.search.open = true;
                             self.search.mode = SearchMode::Replace;
+                            self.focus_search = true;
                         }
                         egui::Key::Z => self.undo(),
                         egui::Key::Y => self.redo(),
@@ -575,11 +529,24 @@ impl LechapesApp {
                         if ui.button(self.i18n.t("find")).clicked() {
                             self.search.open = true;
                             self.search.mode = SearchMode::Find;
+                            self.focus_search = true;
                             ui.close_menu();
                         }
                         if ui.button(self.i18n.t("replace")).clicked() {
                             self.search.open = true;
                             self.search.mode = SearchMode::Replace;
+                            self.focus_search = true;
+                            ui.close_menu();
+                        }
+                        ui.separator();
+                        if ui.button("Formatter").clicked() {
+                            self.format_active_file();
+                            ui.close_menu();
+                        }
+                    });
+                    ui.menu_button("Plugins", |ui| {
+                        if ui.button("Gérer les plugins…").clicked() {
+                            self.plugins.open = true;
                             ui.close_menu();
                         }
                     });
@@ -615,6 +582,52 @@ impl LechapesApp {
                 }
             });
         });
+    }
+
+    fn plugins_window(&mut self, ctx: &egui::Context) {
+        self.plugins.poll();
+        if !self.plugins.open {
+            return;
+        }
+        let mut open = true;
+        egui::Window::new("Plugins")
+            .open(&mut open)
+            .collapsible(false)
+            .resizable(true)
+            .default_width(420.0)
+            .show(ctx, |ui| {
+                ui.heading("Outils et extensions");
+                ui.separator();
+                ui.label("Formateurs");
+                ui.horizontal(|ui| {
+                    ui.label("Prettier — JavaScript, TypeScript, JSON, HTML, CSS, Markdown…");
+                    if Plugins::prettier_ready() {
+                        ui.label("✓ Installé");
+                    } else if self.plugins.installing {
+                        ui.spinner();
+                        ui.label("Installation en arrière-plan…");
+                    } else if ui.button("Télécharger / Installer").clicked() {
+                        self.plugins.install_prettier();
+                    }
+                });
+                ui.label("Le plugin installe une version portable de Node.js et Prettier dans le dossier utilisateur de Lechapes. Aucun Node.js global ni npx n’est requis.");
+                ui.separator();
+                ui.label("Affichage");
+                ui.checkbox(&mut self.plugins.word_wrap, "Word wrap — retour automatique à la ligne");
+                if !self.plugins.status.is_empty() {
+                    ui.separator();
+                    ui.label(&self.plugins.status);
+                }
+                if ui.button("Fermer").clicked() {
+                    self.plugins.open = false;
+                }
+            });
+        if !open {
+            self.plugins.open = false;
+        }
+        if self.plugins.installing {
+            ctx.request_repaint_after(std::time::Duration::from_millis(200));
+        }
     }
 
     fn language_window(&mut self, ctx: &egui::Context) {
@@ -787,13 +800,17 @@ impl LechapesApp {
                     self.i18n.t("find")
                 };
                 ui.label(mode_label);
-                let query_changed = ui
-                    .add(
-                        egui::TextEdit::singleline(&mut self.search.query)
-                            .hint_text(self.i18n.t("search_hint"))
-                            .desired_width(220.0),
-                    )
-                    .changed();
+                let search_response = ui.add(
+                    egui::TextEdit::singleline(&mut self.search.query)
+                        .hint_text(self.i18n.t("search_hint"))
+                        .desired_width(220.0)
+                        .id(egui::Id::new("lechapes_search_input")),
+                );
+                if self.focus_search {
+                    search_response.request_focus();
+                    self.focus_search = false;
+                }
+                let query_changed = search_response.changed();
                 if query_changed {
                     self.search.match_index = usize::MAX;
                 }
@@ -1005,16 +1022,53 @@ impl LechapesApp {
                             let ancienne_couleur = ui.visuals().extreme_bg_color;
                             ui.visuals_mut().extreme_bg_color = couleur_fond_editeur;
 
+                            let query = self.search.query.clone();
+                            let case_sensitive = self.search.case_sensitive;
+                            let current_match = self.search.match_index;
+                            let highlights = search::find_all(&tab.buffer.text, &query, case_sensitive);
+                            let word_wrap = self.plugins.word_wrap;
+                            let mut layouter = move |ui: &egui::Ui, string: &str, wrap_width: f32| {
+                                let mut job = egui::text::LayoutJob::default();
+                                let mut pos = 0usize;
+                                for (i, range) in highlights.iter().enumerate() {
+                                    let start = range.start.min(string.len());
+                                    let end = range.end.min(string.len());
+                                    if start < pos || end <= start || !string.is_char_boundary(start) || !string.is_char_boundary(end) {
+                                        continue;
+                                    }
+                                    if start > pos {
+                                        job.append(&string[pos..start], 0.0, egui::TextFormat::simple(
+                                            egui::FontId::monospace(14.0), couleur_texte_editeur));
+                                    }
+                                    let bg = if i == current_match {
+                                        egui::Color32::from_rgb(255, 145, 35)
+                                    } else {
+                                        egui::Color32::from_rgb(115, 100, 35)
+                                    };
+                                    let mut fmt = egui::TextFormat::simple(
+                                        egui::FontId::monospace(14.0), egui::Color32::BLACK);
+                                    fmt.background = bg;
+                                    job.append(&string[start..end], 0.0, fmt);
+                                    pos = end;
+                                }
+                                if pos < string.len() {
+                                    job.append(&string[pos..], 0.0, egui::TextFormat::simple(
+                                        egui::FontId::monospace(14.0), couleur_texte_editeur));
+                                }
+                                job.wrap.max_width = if word_wrap { wrap_width } else { f32::INFINITY };
+                                ui.fonts(|fonts| fonts.layout_job(job))
+                            };
                             let resp = ui.add_sized(
                                 egui::vec2(largeur_editeur, 0.0),
                                 egui::TextEdit::multiline(&mut tab.buffer.text)
                                     .font(egui::TextStyle::Monospace)
                                     .code_editor()
-                                    .desired_width(largeur_editeur)
+                                    .desired_width(if word_wrap { largeur_editeur } else { 10000.0 })
                                     .frame(false)
                                     .lock_focus(true)
                                     .id(editor_id)
-                                    .text_color(couleur_texte_editeur),
+                                    .text_color(couleur_texte_editeur)
+                                    .layouter(&mut layouter),
                             );
 
                             ui.visuals_mut().extreme_bg_color = ancienne_couleur;
@@ -1210,6 +1264,7 @@ impl eframe::App for LechapesApp {
         self.handle_pending_tab_close(ctx);
         self.language_window(ctx);
         self.about_window(ctx);
+        self.plugins_window(ctx);
         self.viewer.ui(ctx);
         self.save_session(ctx);
     }

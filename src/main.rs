@@ -6,6 +6,7 @@ mod explorer;
 mod fs_ops;
 mod i18n;
 mod persistence;
+mod plugins;
 mod search;
 mod tabs;
 mod theme;
