@@ -1,4 +1,3 @@
-
 # Lechapes
 
 <div align="center">
@@ -8,7 +7,7 @@
 </div>
 
 
-**Éditeur de texte léger, moderne et multi-onglets développé en Rust avec egui.**
+**Lightweight, modern, multi-tab text editor developed in Rust with egui.**
 
 [![GitHub release](https://img.shields.io/github/v/release/Johanes-mg/Lechapes?style=flat-square)](https://github.com/Johanes-mg/Lechapes/releases)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](LICENSE)
@@ -18,50 +17,50 @@
 
 ---
 
-## À propos de Lechapes
+## About Lechapes
 
-**Lechapes** est un éditeur de texte minimaliste, rapide et riche en fonctionnalités, conçu pour offrir une expérience d'édition fluide et agréable. Développé entièrement en **Rust** en utilisant la bibliothèque d'interface graphique **egui/eframe**, il combine des performances de haut niveau avec une faible empreinte mémoire.
-
----
-
-## Fonctionnalités principales
-
-- **Multi-onglets** : Ouvrez et gérez plusieurs fichiers simultanément avec la prise en charge des raccourcis clavier et de la fermeture au clic molette.
-- **Explorateur de fichiers intégré** : Naviguez facilement dans vos dossiers, ouvrez des fichiers et actualisez l'arborescence en un clic.
-- **Gestion des encodages et fins de lignes** : Détection automatique des encodages (UTF-8, UTF-16, Windows-1252, etc.) et des fins de lignes (LF / CRLF).
-- **Recherche et Remplacement** : Outils de recherche avancés avec prise en charge de la sensibilité à la casse, remplacement unitaire ou global (`Ctrl + F`, `Ctrl + H`).
-- **Historique (Annuler / Rétablir)** : Système complet de gestion des modifications (`Ctrl + Z`, `Ctrl + Y`).
-- **Persistance de session** : Restauration automatique de vos onglets ouverts lors de la relance de l'application.
-- **Interface multilingue** : Disponible en **Français**, **Anglais** et **Espagnol**.
-- **Mode Sombre / Clair** : Basculez facilement entre un thème sombre élégant et un thème clair lumineux.
+**Lechapes** is a minimalist, fast, and feature-rich text editor designed to provide a smooth and pleasant editing experience. Developed entirely in **Rust** using the **egui/eframe** graphical interface library, it combines high-level performance with a low memory footprint.
 
 ---
 
-## Aperçu de Lechapes
+## Key Features
+
+- **Multi-tab** : Open and manage multiple files simultaneously with keyboard shortcut support and middle-click tab closing.
+- **Integrated file explorer** : Easily browse your folders, open files, and refresh the tree view with a single click.
+- **Encoding and line ending management** : Automatic detection of encodings (UTF-8, UTF-16, Windows-1252, etc.) and line endings (LF / CRLF).
+- **Search and Replace** : Advanced search tools with case sensitivity support, single or global replacement (`Ctrl + F`, `Ctrl + H`).
+- **History (Undo / Redo)** : Complete modification management system (`Ctrl + Z`, `Ctrl + Y`).
+- **Session persistence** : Automatic restoration of your open tabs when relaunching the application.
+- **Multilingual interface** : Available in **French**, **English**, and **Spanish**.
+- **Dark / Light mode** : Easily switch between an elegant dark theme and a bright light theme.
+
+---
+
+## Lechapes Overview
 
 <div align="center">
 
-### Menu principal
+### Main menu
 
 ![SHOOT1](captures/lechapes_1.png)
 
-### Mode Dark
+### Dark Mode
 
 ![SHOOT2](captures/lechapes_2.png)
 
-### Choix de langues
+### Language selection
 
 ![SHOOT3](captures/lechapes_3.png)
 
-### Choix de langues fr
+### Language selection fr
 
 ![SHOOT4](captures/lechapes_4.png)
 
-### Menu Principal fr
+### Main menu fr
 
 ![SHOOT5](captures/lechapes_5.png)
 
-### Visionneuse d'images integré 
+### Integrated image viewer
 
 ![SHOOT6](captures/lechapes_6.png)
 
@@ -71,23 +70,23 @@
 
 ---
 
-## Technologies utilisées
+## Technologies Used
 
-- **[Rust](https://www.rust-lang.org/)** : Langage de programmation système garantissant sécurité et rapidité.
-- **[egui / eframe](https://github.com/emilk/egui)** : Framework GUI immédiat et ultra-rapide pour Rust.
-- **[rfd](https://github.com/PolyMeilex/rfd)** : Dialogue de fichiers natifs multi-plateforme.
-- **[serde](https://serde.rs/)** : Sérialisation et désérialisation pour la gestion de session.
+- **[Rust](https://www.rust-lang.org/)** : Systems programming language guaranteeing safety and speed.
+- **[egui / eframe](https://github.com/emilk/egui)** : Immediate and ultra-fast GUI framework for Rust.
+- **[rfd](https://github.com/PolyMeilex/rfd)** : Cross-platform native file dialogs.
+- **[serde](https://serde.rs/)** : Serialization and deserialization for session management.
 
 ---
 
-## Structure du projet
+## Project Structure
 
-Voici l'arborescence et l'organisation des fichiers de la solution :
+Here is the file tree and organization of the solution:
 
 ```
 Lechapes/
 │
-├── images/                 # Ressources graphiques (logos, drapeaux, icônes, boutons)
+├── images/                 # Graphic resources (logos, flags, icons, buttons)
 │   ├── drapeau_en.png
 │   ├── drapeau_es.png
 │   ├── drapeau_fr.png
@@ -97,64 +96,63 @@ Lechapes/
 │   ├── redo.png
 │   └── undo.png
 │
-├── Installeur/             # Fichiers de configuration et scripts d'installation (Inno Setup)
-├── src/                    # Code source principal en Rust
-│   ├── app.rs              # Logique globale de l'application UI
-│   ├── buffer.rs           # Gestion des tampons de texte
-│   ├── explorer.rs         # Explorateur de fichiers latéral
-│   ├── fs_ops.rs           # Opérations système de fichiers (lecture/écriture)
-│   ├── i18n.rs             # Internationalisation (FR, EN, ES)
-│   ├── main.rs             # Point d'entrée de l'application
-│   ├── persistence.rs      # Sauvegarde et restauration de session
-│   ├── search.rs           # Algorithmes de recherche et remplacement
-│   ├── tabs.rs             # Gestion des onglets
-│   └── theme.rs            # Thèmes (clair / sombre)
+├── Installeur/             # Configuration files and installation scripts (Inno Setup)
+├── src/                    # Main Rust source code
+│   ├── app.rs              # Global application UI logic
+│   ├── buffer.rs           # Text buffer management
+│   ├── explorer.rs         # Sidebar file explorer
+│   ├── fs_ops.rs           # File system operations (read/write)
+│   ├── i18n.rs             # Internationalization (FR, EN, ES)
+│   ├── main.rs             # Application entry point
+│   ├── persistence.rs      # Session save and restore
+│   ├── search.rs           # Search and replace algorithms
+│   ├── tabs.rs             # Tab management
+│   └── theme.rs            # Themes (light / dark)
 │
-├── .gitignore              # Fichiers et dossiers ignorés par Git
-├── Cargo.lock              # Versions exactes des dépendances Cargo
-├── Cargo.toml              # Configuration et métadonnées du projet Rust
-├── installer.iss           # Script de création de l'installateur Windows
-├── README.md               # Documentation du projet
-└── rust-toolchain.toml     # Configuration de la chaîne d'outils Rust
+├── .gitignore              # Files and folders ignored by Git
+├── Cargo.lock              # Exact versions of Cargo dependencies
+├── Cargo.toml              # Rust project configuration and metadata
+├── installer.iss           # Windows installer creation script
+├── README.md               # Project documentation
+└── rust-toolchain.toml     # Rust toolchain configuration
 
 
 ```
-## Installation et Compilation
-### Prérequis
-Assurez-vous d'avoir installé **Rust** (version stable recommandée). Vous pouvez l'obtenir sur rustup.rs.
-### Compilation depuis les sources
- 1. Clonez le dépôt :
+## Installation and Compilation
+### Prerequisites
+Make sure you have **Rust** installed (stable version recommended). You can get it at rustup.rs.
+### Compiling from source
+ 1. Clone the repository:
    ```bash
    git clone [https://github.com/Johanes-mg/Lechapes.git](https://github.com/Johanes-mg/Lechapes.git)
    cd Lechapes
    
    ```
- 2. Compilez le projet en mode **release** (optimisé pour les performances) :
+ 2. Compile the project in **release** mode (optimized for performance):
    ```bash
    cargo build --release
    
    ```
- 3. L'exécutable généré se trouvera dans :
+ 3. The generated executable will be located in:
    ```bash
    target/release/lechapes.exe
    
    ```
-## Raccourcis Clavier Utiles
-| Raccourci | Action |
+## Useful Keyboard Shortcuts
+| Shortcut | Action |
 |---|---|
-| Ctrl + N | Nouveau fichier |
-| Ctrl + O | Ouvrir un fichier |
-| Ctrl + S | Enregistrer |
-| Ctrl + Shift + S | Enregistrer sous |
-| Ctrl + W | Fermer l'onglet actif |
-| Ctrl + F | Rechercher |
-| Ctrl + H | Remplacer |
-| Ctrl + Z | Annuler |
-| Ctrl + Y / Ctrl + Shift + Z | Rétablir |
-| Ctrl + Tab | Passer à l'onglet suivant |
-## 👤 Auteur
+| Ctrl + N | New file |
+| Ctrl + O | Open a file |
+| Ctrl + S | Save |
+| Ctrl + Shift + S | Save as |
+| Ctrl + W | Close active tab |
+| Ctrl + F | Search |
+| Ctrl + H | Replace |
+| Ctrl + Z | Undo |
+| Ctrl + Y / Ctrl + Shift + Z | Redo |
+| Ctrl + Tab | Switch to next tab |
+## 👤 Author
  * **Johanes-mg** 
-## 📄 Licence
-Ce projet est sous licence ouverte. Voir le fichier LICENSE pour plus de détails.
+## 📄 License
+This project is under an open license. See the LICENSE file for more details.
 ```
-
