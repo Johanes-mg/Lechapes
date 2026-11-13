@@ -1,8 +1,8 @@
 [Setup]
 AppId={{A1B2C3D4-1111-2222-3333-444455556666}
 AppName=Lechapes
-AppVersion=0.5.0
-AppVerName=Lechapes 0.5.0
+AppVersion=3.1.6
+AppVerName=Lechapes 3.1.6
 AppPublisher=Johanes-mg
 AppPublisherURL=https://johanes-mg.github.io
 AppSupportURL=https://johanes-mg.github.io
@@ -23,11 +23,11 @@ UninstallDisplayIcon={app}\lechapes.exe
 DisableDirPage=no
 DisableReadyPage=no
 UsePreviousAppDir=yes
-VersionInfoVersion=0.5.0
+VersionInfoVersion=3.1.6
 VersionInfoCompany=Johanes-mg
-VersionInfoDescription=Lechapes 0.5.0 - Installation
+VersionInfoDescription=Lechapes 3.1.6 - Installation
 VersionInfoProductName=Lechapes
-VersionInfoProductVersion=0.5.0
+VersionInfoProductVersion=3.1.6
 
 [Languages]
 Name: "french"; MessagesFile: "compiler:Languages\French.isl"

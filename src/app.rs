@@ -3,12 +3,13 @@ use crate::explorer::Explorer;
 use crate::fs_ops;
 use crate::i18n::{I18n, Lang};
 use crate::persistence::{self, Session};
-use crate::plugins::Plugins;
+use crate::plugins::{Formateur, Plugins};
 use crate::search::{self, SearchMode, SearchState};
 use crate::tabs::TabsState;
 use crate::theme;
 use crate::viewer::{est_image, ImageViewer};
 use eframe::egui;
+use egui::Color32;
 use std::path::PathBuf;
 
 pub struct LechapesApp {
@@ -279,11 +280,7 @@ impl LechapesApp {
                 tab.dirty = true;
             }
         }
-        self.status = if modifie {
-            String::new()
-        } else {
-            "Rien a annuler".to_string()
-        };
+        self.status = if modifie { String::new() } else { "Rien a annuler".to_string() };
         self.focus_editor = true;
     }
 
@@ -295,41 +292,25 @@ impl LechapesApp {
                 tab.dirty = true;
             }
         }
-        self.status = if modifie {
-            String::new()
-        } else {
-            "Rien a retablir".to_string()
-        };
+        self.status = if modifie { String::new() } else { "Rien a retablir".to_string() };
         self.focus_editor = true;
     }
 
     fn handle_shortcuts(&mut self, ctx: &egui::Context) {
         let events = ctx.input(|i| i.events.clone());
         for ev in events {
-            if let egui::Event::Key {
-                key,
-                pressed: true,
-                modifiers,
-                ..
-            } = ev
-            {
+            if let egui::Event::Key { key, pressed: true, modifiers, .. } = ev {
                 let ctrl = modifiers.ctrl || modifiers.command;
                 if ctrl && !modifiers.shift {
                     match key {
-                        egui::Key::S => {
-                            let idx = self.tabs.active;
-                            self.save_tab(idx);
-                        }
+                        egui::Key::S => { let idx = self.tabs.active; self.save_tab(idx); }
                         egui::Key::N => self.new_file(),
                         egui::Key::O => {
                             if let Some(p) = rfd::FileDialog::new().pick_file() {
                                 self.open_path_avec_ctx(ctx, p);
                             }
                         }
-                        egui::Key::W => {
-                            let idx = self.tabs.active;
-                            self.request_close_tab(idx);
-                        }
+                        egui::Key::W => { let idx = self.tabs.active; self.request_close_tab(idx); }
                         egui::Key::F => {
                             self.search.open = true;
                             self.search.mode = SearchMode::Find;
@@ -353,10 +334,7 @@ impl LechapesApp {
                     }
                 } else if ctrl && modifiers.shift {
                     match key {
-                        egui::Key::S => {
-                            let idx = self.tabs.active;
-                            self.save_tab_as(idx);
-                        }
+                        egui::Key::S => { let idx = self.tabs.active; self.save_tab_as(idx); }
                         egui::Key::Z => self.redo(),
                         egui::Key::Tab => {
                             if self.tabs.tabs.len() > 1 {
@@ -381,14 +359,8 @@ impl LechapesApp {
     }
 
     fn search_next(&mut self) {
-        let Some(tab) = self.tabs.active_tab_mut() else {
-            return;
-        };
-        let matches = search::find_all(
-            &tab.buffer.text,
-            &self.search.query,
-            self.search.case_sensitive,
-        );
+        let Some(tab) = self.tabs.active_tab_mut() else { return; };
+        let matches = search::find_all(&tab.buffer.text, &self.search.query, self.search.case_sensitive);
         if matches.is_empty() {
             self.status = "Aucune correspondance trouvee".to_string();
             return;
@@ -406,7 +378,7 @@ impl LechapesApp {
         let ligne = prefix.bytes().filter(|b| *b == b'\n').count() + 1;
         let colonne = prefix.rsplit('\n').next().unwrap_or("").chars().count() + 1;
         self.status = format!(
-            "Occurrence {} sur {} — ligne {}, colonne {}",
+            "Occurrence {} sur {} - ligne {}, colonne {}",
             self.search.match_index + 1,
             matches.len(),
             ligne,
@@ -415,29 +387,17 @@ impl LechapesApp {
     }
 
     fn replace_current(&mut self) {
-        let Some(tab) = self.tabs.active_tab_mut() else {
-            return;
-        };
-        let matches = search::find_all(
-            &tab.buffer.text,
-            &self.search.query,
-            self.search.case_sensitive,
-        );
-        if matches.is_empty() {
-            return;
-        }
+        let Some(tab) = self.tabs.active_tab_mut() else { return; };
+        let matches = search::find_all(&tab.buffer.text, &self.search.query, self.search.case_sensitive);
+        if matches.is_empty() { return; }
         let idx = if self.search.match_index == usize::MAX {
             0
         } else {
             self.search.match_index.min(matches.len() - 1)
         };
         let m = matches[idx].clone();
-        let start = m.start;
-        let end = m.end;
         let before = tab.buffer.text.clone();
-        tab.buffer
-            .text
-            .replace_range(start..end, &self.search.replacement);
+        tab.buffer.text.replace_range(m.start..m.end, &self.search.replacement);
         tab.buffer.push_snapshot_after_change(before);
         tab.dirty = true;
         self.search.match_index = usize::MAX;
@@ -446,17 +406,9 @@ impl LechapesApp {
 
     fn replace_all(&mut self) {
         let replacement = self.search.replacement.clone();
-        let Some(tab) = self.tabs.active_tab_mut() else {
-            return;
-        };
-        let matches = search::find_all(
-            &tab.buffer.text,
-            &self.search.query,
-            self.search.case_sensitive,
-        );
-        if matches.is_empty() {
-            return;
-        }
+        let Some(tab) = self.tabs.active_tab_mut() else { return; };
+        let matches = search::find_all(&tab.buffer.text, &self.search.query, self.search.case_sensitive);
+        if matches.is_empty() { return; }
         let before = tab.buffer.text.clone();
         let mut result = String::with_capacity(tab.buffer.text.len());
         let mut cursor = 0;
@@ -473,151 +425,199 @@ impl LechapesApp {
     }
 
     fn top_bar(&mut self, ctx: &egui::Context) {
-        egui::TopBottomPanel::top("topbar").show(ctx, |ui| {
-            ui.horizontal(|ui| {
-                egui::menu::bar(ui, |ui| {
-                    ui.menu_button(self.i18n.t("file"), |ui| {
-                        if ui.button(self.i18n.t("new_file")).clicked() {
-                            self.new_file();
-                            ui.close_menu();
-                        }
-                        if ui.button(self.i18n.t("new_folder")).clicked() {
-                            self.new_folder();
-                            ui.close_menu();
-                        }
-                        ui.separator();
-                        if ui.button(self.i18n.t("save")).clicked() {
-                            let idx = self.tabs.active;
-                            self.save_tab(idx);
-                            ui.close_menu();
-                        }
-                        if ui.button(self.i18n.t("save_as")).clicked() {
-                            let idx = self.tabs.active;
-                            self.save_tab_as(idx);
-                            ui.close_menu();
-                        }
-                        ui.separator();
-                        if ui.button(self.i18n.t("close_tab")).clicked() {
-                            let idx = self.tabs.active;
-                            self.request_close_tab(idx);
-                            ui.close_menu();
-                        }
-                        if ui.button(self.i18n.t("quit")).clicked() {
-                            if self.tabs.any_dirty() {
-                                self.pending_close = true;
-                            } else {
-                                ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+        let bg = if self.sombre {
+            Color32::from_rgb(24, 26, 30)
+        } else {
+            Color32::from_rgb(248, 249, 251)
+        };
+        egui::TopBottomPanel::top("topbar")
+            .frame(
+                egui::Frame::none()
+                    .fill(bg)
+                    .inner_margin(egui::Margin::symmetric(10.0, 6.0)),
+            )
+            .show(ctx, |ui| {
+                ui.horizontal(|ui| {
+                    egui::menu::bar(ui, |ui| {
+                        ui.menu_button(self.i18n.t("file"), |ui| {
+                            if ui.button(self.i18n.t("new_file")).clicked() {
+                                self.new_file();
+                                ui.close_menu();
                             }
-                        }
-                    });
-                    ui.menu_button(self.i18n.t("open"), |ui| {
-                        if ui.button(self.i18n.t("open_file")).clicked() {
-                            if let Some(p) = rfd::FileDialog::new().pick_file() {
-                                self.open_path_avec_ctx(ctx, p);
+                            if ui.button(self.i18n.t("new_folder")).clicked() {
+                                self.new_folder();
+                                ui.close_menu();
                             }
-                            ui.close_menu();
-                        }
-                        if ui.button(self.i18n.t("open_folder")).clicked() {
-                            if let Some(p) = rfd::FileDialog::new().pick_folder() {
-                                self.explorer.set_root(p);
-                                self.session_dirty = true;
+                            ui.separator();
+                            if ui.button(self.i18n.t("save")).clicked() {
+                                let idx = self.tabs.active;
+                                self.save_tab(idx);
+                                ui.close_menu();
                             }
-                            ui.close_menu();
-                        }
-                    });
-                    ui.menu_button(self.i18n.t("edit"), |ui| {
-                        if ui.button(self.i18n.t("find")).clicked() {
-                            self.search.open = true;
-                            self.search.mode = SearchMode::Find;
-                            self.focus_search = true;
-                            ui.close_menu();
-                        }
-                        if ui.button(self.i18n.t("replace")).clicked() {
-                            self.search.open = true;
-                            self.search.mode = SearchMode::Replace;
-                            self.focus_search = true;
-                            ui.close_menu();
-                        }
-                        ui.separator();
-                        if ui.button("Formatter").clicked() {
-                            self.format_active_file();
-                            ui.close_menu();
-                        }
-                    });
-                    ui.menu_button("Plugins", |ui| {
-                        if ui.button("Gérer les plugins…").clicked() {
-                            self.plugins.open = true;
-                            ui.close_menu();
-                        }
-                    });
-                    ui.menu_button(self.i18n.t("view"), |ui| {
-                        let mut change = false;
-                        ui.horizontal(|ui| {
-                            ui.label(self.i18n.t("dark_mode"));
-                            if ui.checkbox(&mut self.sombre, "").changed() {
-                                change = true;
+                            if ui.button(self.i18n.t("save_as")).clicked() {
+                                let idx = self.tabs.active;
+                                self.save_tab_as(idx);
+                                ui.close_menu();
+                            }
+                            ui.separator();
+                            if ui.button(self.i18n.t("close_tab")).clicked() {
+                                let idx = self.tabs.active;
+                                self.request_close_tab(idx);
+                                ui.close_menu();
+                            }
+                            if ui.button(self.i18n.t("quit")).clicked() {
+                                if self.tabs.any_dirty() {
+                                    self.pending_close = true;
+                                } else {
+                                    ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                                }
                             }
                         });
-                        if change {
-                            theme::configurer_style(ctx, self.sombre);
-                            theme::configurer_style_editeur(ctx);
-                            self.session_dirty = true;
-                        }
-                        ui.separator();
-                        if ui.button(self.i18n.t("change_language")).clicked() {
-                            self.language_open = true;
-                            ui.close_menu();
-                        }
-                    });
-                    ui.menu_button(self.i18n.t("help"), |ui| {
-                        if ui.button(self.i18n.t("about")).clicked() {
-                            self.about_open = true;
-                            ui.close_menu();
-                        }
+                        ui.menu_button(self.i18n.t("open"), |ui| {
+                            if ui.button(self.i18n.t("open_file")).clicked() {
+                                if let Some(p) = rfd::FileDialog::new().pick_file() {
+                                    self.open_path_avec_ctx(ctx, p);
+                                }
+                                ui.close_menu();
+                            }
+                            if ui.button(self.i18n.t("open_folder")).clicked() {
+                                if let Some(p) = rfd::FileDialog::new().pick_folder() {
+                                    self.explorer.set_root(p);
+                                    self.session_dirty = true;
+                                }
+                                ui.close_menu();
+                            }
+                        });
+                        ui.menu_button(self.i18n.t("edit"), |ui| {
+                            if ui.button(self.i18n.t("find")).clicked() {
+                                self.search.open = true;
+                                self.search.mode = SearchMode::Find;
+                                self.focus_search = true;
+                                ui.close_menu();
+                            }
+                            if ui.button(self.i18n.t("replace")).clicked() {
+                                self.search.open = true;
+                                self.search.mode = SearchMode::Replace;
+                                self.focus_search = true;
+                                ui.close_menu();
+                            }
+                            ui.separator();
+                            if ui.button("Formatter").clicked() {
+                                self.format_active_file();
+                                ui.close_menu();
+                            }
+                        });
+                        ui.menu_button("Plugins", |ui| {
+                            if ui.button("Gerer les plugins...").clicked() {
+                                self.plugins.open = true;
+                                ui.close_menu();
+                            }
+                        });
+                        ui.menu_button(self.i18n.t("view"), |ui| {
+                            let mut change = false;
+                            ui.horizontal(|ui| {
+                                ui.label(self.i18n.t("dark_mode"));
+                                if ui.checkbox(&mut self.sombre, "").changed() {
+                                    change = true;
+                                }
+                            });
+                            if change {
+                                theme::configurer_style(ctx, self.sombre);
+                                theme::configurer_style_editeur(ctx);
+                                self.session_dirty = true;
+                            }
+                            ui.separator();
+                            if ui.button(self.i18n.t("change_language")).clicked() {
+                                self.language_open = true;
+                                ui.close_menu();
+                            }
+                        });
+                        ui.menu_button(self.i18n.t("help"), |ui| {
+                            if ui.button(self.i18n.t("about")).clicked() {
+                                self.about_open = true;
+                                ui.close_menu();
+                            }
+                        });
                     });
                 });
-                ui.separator();
-                if ui.button(self.i18n.t("format")).on_hover_text("Formater le fichier ouvert (Prettier ou rustfmt)").clicked() {
-                    self.format_active_file();
-                }
             });
+    }
+
+    fn ligne_formateur(
+        ui: &mut egui::Ui,
+        plugins: &mut Plugins,
+        f: Formateur,
+        description: &str,
+        ctx: &egui::Context,
+    ) {
+        ui.horizontal(|ui| {
+            ui.label(egui::RichText::new(f.nom()).strong());
+            ui.label(description);
+            let installe = Plugins::ready(f);
+            let en_cours = plugins.installation_en_cours == Some(f);
+            if installe {
+                ui.colored_label(Color32::from_rgb(90, 180, 120), "installe");
+                if ui.button("Supprimer").clicked() {
+                    plugins.remove(f);
+                }
+            } else if en_cours {
+                ui.spinner();
+                ui.label("telechargement...");
+            } else if ui.button("Telecharger").clicked() {
+                plugins.install(f);
+                ctx.request_repaint();
+            }
         });
     }
 
     fn plugins_window(&mut self, ctx: &egui::Context) {
         self.plugins.poll();
-        if !self.plugins.open {
-            return;
+        if !self.plugins.open { return; }
+        if self.plugins.installation_en_cours.is_some() {
+            ctx.request_repaint_after(std::time::Duration::from_millis(150));
         }
         let mut open = true;
         egui::Window::new("Plugins")
             .open(&mut open)
             .collapsible(false)
             .resizable(true)
-            .default_width(420.0)
+            .default_width(560.0)
             .show(ctx, |ui| {
-                ui.heading("Outils et extensions");
+                ui.heading("Formateurs optionnels");
+                ui.label("Lechapes ne livre aucun formateur par defaut. Telechargez uniquement ceux dont vous avez besoin.");
                 ui.separator();
-                ui.label("Formateurs");
+
+                Self::ligne_formateur(
+                    ui,
+                    &mut self.plugins,
+                    Formateur::Prettier,
+                    "- JavaScript, TypeScript, JSON, HTML, CSS, Markdown, YAML, GraphQL, Vue, Svelte, Astro",
+                    ctx,
+                );
+                ui.add_space(4.0);
+                Self::ligne_formateur(
+                    ui,
+                    &mut self.plugins,
+                    Formateur::Black,
+                    "- Python",
+                    ctx,
+                );
+                ui.add_space(4.0);
                 ui.horizontal(|ui| {
-                    ui.label("Prettier — JavaScript, TypeScript, JSON, HTML, CSS, Markdown…");
-                    if Plugins::prettier_ready() {
-                        ui.label("✓ Installé");
-                    } else if self.plugins.installing {
-                        ui.spinner();
-                        ui.label("Installation en arrière-plan…");
-                    } else if ui.button("Télécharger / Installer").clicked() {
-                        self.plugins.install_prettier();
-                    }
+                    ui.label(egui::RichText::new("rustfmt").strong());
+                    ui.label("- Rust (fourni avec la toolchain Rust, toujours disponible)");
                 });
-                ui.label("Le plugin installe une version portable de Node.js et Prettier dans le dossier utilisateur de Lechapes. Aucun Node.js global ni npx n’est requis.");
-                ui.separator();
-                ui.label("Affichage");
-                ui.checkbox(&mut self.plugins.word_wrap, "Word wrap — retour automatique à la ligne");
+
                 if !self.plugins.status.is_empty() {
                     ui.separator();
                     ui.label(&self.plugins.status);
                 }
+
+                ui.separator();
+                ui.label("Affichage");
+                ui.checkbox(&mut self.plugins.word_wrap, "Word wrap - retour automatique a la ligne");
+
+                ui.add_space(6.0);
                 if ui.button("Fermer").clicked() {
                     self.plugins.open = false;
                 }
@@ -625,15 +625,10 @@ impl LechapesApp {
         if !open {
             self.plugins.open = false;
         }
-        if self.plugins.installing {
-            ctx.request_repaint_after(std::time::Duration::from_millis(200));
-        }
     }
 
     fn language_window(&mut self, ctx: &egui::Context) {
-        if !self.language_open {
-            return;
-        }
+        if !self.language_open { return; }
         let mut close = false;
         let mut window_open = true;
         egui::Window::new(self.i18n.t("change_language"))
@@ -642,7 +637,7 @@ impl LechapesApp {
             .open(&mut window_open)
             .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
             .show(ctx, |ui| {
-                ui.set_min_width(260.0);
+                ui.set_min_width(280.0);
                 egui::ScrollArea::vertical()
                     .max_height(220.0)
                     .auto_shrink([false, false])
@@ -655,7 +650,7 @@ impl LechapesApp {
                         for (lang, key, img) in langs {
                             let selected = self.i18n.lang == lang;
                             ui.horizontal(|ui| {
-                                if theme::bouton_image_seule(ui, img, 32.0, 20.0) {
+                                if theme::bouton_image_seule(ui, img, 34.0, 22.0) {
                                     self.i18n.lang = lang;
                                     self.session_dirty = true;
                                     close = true;
@@ -680,9 +675,7 @@ impl LechapesApp {
     }
 
     fn about_window(&mut self, ctx: &egui::Context) {
-        if !self.about_open {
-            return;
-        }
+        if !self.about_open { return; }
         let mut close = false;
         let mut window_open = true;
         egui::Window::new(self.i18n.t("about"))
@@ -691,28 +684,28 @@ impl LechapesApp {
             .open(&mut window_open)
             .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
             .show(ctx, |ui| {
-                ui.set_min_width(320.0);
+                ui.set_min_width(340.0);
                 ui.vertical_centered(|ui| {
                     if let Some(tex) = theme::image(ctx, "logo.png") {
-                        let hauteur = 64.0;
+                        let hauteur = 72.0;
                         let ratio = tex.size_vec2().x / tex.size_vec2().y;
                         ui.add(
                             egui::Image::new(&tex)
                                 .fit_to_exact_size(egui::vec2(hauteur * ratio, hauteur)),
                         );
                     }
-                    ui.add_space(10.0);
-                    ui.label(egui::RichText::new("Lechapes").size(20.0).strong());
+                    ui.add_space(12.0);
+                    ui.label(egui::RichText::new("Lechapes").size(22.0).strong());
                     ui.add_space(4.0);
                     ui.label(self.i18n.t("about_desc"));
-                    ui.add_space(10.0);
+                    ui.add_space(12.0);
                     ui.label(format!("{} : Johanes-mg", self.i18n.t("about_author")));
                     ui.add_space(4.0);
                     ui.hyperlink_to(
                         self.i18n.t("about_github"),
                         "https://github.com/Johanes-mg/Lechapes",
                     );
-                    ui.add_space(12.0);
+                    ui.add_space(14.0);
                     if ui.button(self.i18n.t("close_window")).clicked() {
                         close = true;
                     }
@@ -724,248 +717,359 @@ impl LechapesApp {
     }
 
     fn tabs_bar(&mut self, ctx: &egui::Context) {
-        egui::TopBottomPanel::top("tabsbar").show(ctx, |ui| {
-            egui::ScrollArea::horizontal()
-                .id_source("tabs_scroll")
-                .show(ui, |ui| {
-                    ui.horizontal(|ui| {
-                        let mut to_activate: Option<usize> = None;
-                        let mut to_close: Option<usize> = None;
-                        let untitled = self.i18n.t("untitled").to_string();
-                        let mut labels: Vec<(usize, String, bool)> = Vec::new();
-                        for (i, tab) in self.tabs.tabs.iter().enumerate() {
-                            let label = if tab.dirty {
-                                format!("{} *", tab.title(&untitled))
+        let bg = if self.sombre {
+            Color32::from_rgb(18, 20, 24)
+        } else {
+            Color32::from_rgb(238, 240, 244)
+        };
+        let stroke = if self.sombre {
+            Color32::from_rgb(45, 48, 55)
+        } else {
+            Color32::from_rgb(220, 224, 230)
+        };
+        egui::TopBottomPanel::top("tabsbar")
+            .frame(
+                egui::Frame::none()
+                    .fill(bg)
+                    .inner_margin(egui::Margin::symmetric(8.0, 6.0))
+                    .stroke(egui::Stroke::new(1.0_f32, stroke)),
+            )
+            .show(ctx, |ui| {
+                egui::ScrollArea::horizontal()
+                    .id_source("tabs_scroll")
+                    .show(ui, |ui| {
+                        ui.horizontal(|ui| {
+                            ui.spacing_mut().item_spacing.x = 2.0;
+                            let mut to_activate: Option<usize> = None;
+                            let mut to_close: Option<usize> = None;
+                            let untitled = self.i18n.t("untitled").to_string();
+
+                            let mut tab_data: Vec<(usize, String, bool, bool)> = Vec::new();
+                            for (i, tab) in self.tabs.tabs.iter().enumerate() {
+                                tab_data.push((i, tab.title(&untitled), tab.dirty, i == self.tabs.active));
+                            }
+
+                            for (i, title, dirty, active) in tab_data {
+                                let display = if dirty {
+                                    format!("{} \u{2022}", title)
+                                } else {
+                                    title
+                                };
+                                let font = egui::FontId::proportional(13.0);
+                                let text_width = ui.fonts(|f| {
+                                    f.layout_no_wrap(display.clone(), font.clone(), Color32::WHITE)
+                                        .size()
+                                        .x
+                                });
+                                let width = (text_width + 44.0).max(120.0);
+                                let (rect, resp) = ui.allocate_exact_size(
+                                    egui::vec2(width, 32.0),
+                                    egui::Sense::click(),
+                                );
+
+                                let rounding = egui::Rounding {
+                                    nw: 10.0,
+                                    ne: 10.0,
+                                    sw: 0.0,
+                                    se: 0.0,
+                                };
+                                let tab_bg = if active {
+                                    if self.sombre { Color32::from_rgb(45, 48, 54) } else { Color32::WHITE }
+                                } else if resp.hovered() {
+                                    if self.sombre { Color32::from_rgb(32, 34, 39) } else { Color32::from_rgb(228, 231, 236) }
+                                } else {
+                                    Color32::TRANSPARENT
+                                };
+                                let text_color = if active {
+                                    if self.sombre { Color32::from_rgb(224, 228, 234) } else { Color32::from_rgb(28, 32, 42) }
+                                } else if self.sombre {
+                                    Color32::from_rgb(140, 146, 156)
+                                } else {
+                                    Color32::from_rgb(110, 118, 128)
+                                };
+
+                                let x_rect = egui::Rect::from_center_size(
+                                    egui::pos2(rect.right() - 14.0, rect.center().y),
+                                    egui::vec2(20.0, 20.0),
+                                );
+                                let x_resp = ui.interact(
+                                    x_rect,
+                                    ui.make_persistent_id(("tab_close", i)),
+                                    egui::Sense::click(),
+                                );
+
+                                ui.painter().rect_filled(rect, rounding, tab_bg);
+
+                                if active {
+                                    let accent = if self.sombre {
+                                        Color32::from_rgb(90, 150, 220)
+                                    } else {
+                                        Color32::from_rgb(70, 125, 200)
+                                    };
+                                    let line = egui::Rect::from_min_size(
+                                        egui::pos2(rect.left() + 10.0, rect.bottom() - 2.0),
+                                        egui::vec2(rect.width() - 20.0, 2.0),
+                                    );
+                                    ui.painter().rect_filled(line, 1.0, accent);
+                                }
+
+                                ui.painter().text(
+                                    egui::pos2(rect.left() + 14.0, rect.center().y),
+                                    egui::Align2::LEFT_CENTER,
+                                    &display,
+                                    font,
+                                    text_color,
+                                );
+
+                                let show_close = active || resp.hovered() || x_resp.hovered();
+                                let x_color = if x_resp.hovered() {
+                                    Color32::from_rgb(230, 100, 100)
+                                } else if show_close {
+                                    text_color.gamma_multiply(0.7)
+                                } else {
+                                    Color32::TRANSPARENT
+                                };
+                                ui.painter().text(
+                                    x_rect.center(),
+                                    egui::Align2::CENTER_CENTER,
+                                    "\u{00D7}",
+                                    egui::FontId::proportional(15.0),
+                                    x_color,
+                                );
+
+                                if x_resp.clicked() {
+                                    to_close = Some(i);
+                                } else if resp.clicked() {
+                                    to_activate = Some(i);
+                                }
+                                if resp.middle_clicked() {
+                                    to_close = Some(i);
+                                }
+                            }
+
+                            let (btn_rect, btn_resp) = ui.allocate_exact_size(
+                                egui::vec2(32.0, 32.0),
+                                egui::Sense::click(),
+                            );
+                            let btn_bg = if btn_resp.hovered() {
+                                if self.sombre { Color32::from_rgb(50, 53, 60) } else { Color32::from_rgb(220, 224, 230) }
                             } else {
-                                tab.title(&untitled)
+                                Color32::TRANSPARENT
                             };
-                            labels.push((i, label, i == self.tabs.active));
-                        }
-                        for (i, label, active) in labels {
-                            let mut text = egui::RichText::new(&label);
-                            if active {
-                                text = text.strong();
+                            let plus_color = if self.sombre {
+                                Color32::from_rgb(180, 186, 196)
+                            } else {
+                                Color32::from_rgb(80, 86, 96)
+                            };
+                            ui.painter().rect_filled(btn_rect, egui::Rounding::same(10.0), btn_bg);
+                            ui.painter().text(
+                                btn_rect.center(),
+                                egui::Align2::CENTER_CENTER,
+                                "+",
+                                egui::FontId::proportional(18.0),
+                                plus_color,
+                            );
+                            if btn_resp.clicked() {
+                                self.tabs.new_tab();
+                                self.focus_editor = true;
+                                self.session_dirty = true;
                             }
-                            let resp = ui.selectable_label(active, text);
-                            if resp.clicked() {
-                                to_activate = Some(i);
+
+                            if let Some(i) = to_activate {
+                                self.tabs.active = i;
+                                self.focus_editor = true;
+                                self.session_dirty = true;
                             }
-                            if resp.middle_clicked() {
-                                to_close = Some(i);
+                            if let Some(i) = to_close {
+                                self.request_close_tab(i);
                             }
-                            if ui
-                                .add(
-                                    egui::Button::new(
-                                        egui::RichText::new("\u{00D7}")
-                                            .size(14.0)
-                                            .color(ui.visuals().weak_text_color()),
-                                    )
-                                    .frame(false)
-                                    .min_size(egui::vec2(18.0, 18.0)),
-                                )
-                                .on_hover_text("Fermer")
-                                .clicked()
-                            {
-                                to_close = Some(i);
-                            }
-                            ui.separator();
-                        }
-                        if ui.button("+").clicked() {
-                            self.tabs.new_tab();
-                            self.focus_editor = true;
-                            self.session_dirty = true;
-                        }
-                        if let Some(i) = to_activate {
-                            self.tabs.active = i;
-                            self.focus_editor = true;
-                            self.session_dirty = true;
-                        }
-                        if let Some(i) = to_close {
-                            self.request_close_tab(i);
-                        }
+                        });
                     });
-                });
-        });
+            });
     }
 
     fn search_panel(&mut self, ctx: &egui::Context) {
-        if !self.search.open {
-            return;
-        }
-        egui::TopBottomPanel::bottom("search_panel").show(ctx, |ui| {
-            ui.horizontal(|ui| {
-                let mode_label = if self.search.mode == SearchMode::Replace {
-                    self.i18n.t("replace")
-                } else {
-                    self.i18n.t("find")
-                };
-                ui.label(mode_label);
-                let search_response = ui.add(
-                    egui::TextEdit::singleline(&mut self.search.query)
-                        .hint_text(self.i18n.t("search_hint"))
-                        .desired_width(220.0)
-                        .id(egui::Id::new("lechapes_search_input")),
-                );
-                if self.focus_search {
-                    search_response.request_focus();
-                    self.focus_search = false;
-                }
-                let query_changed = search_response.changed();
-                if query_changed {
-                    self.search.match_index = usize::MAX;
-                }
-                if self.search.mode == SearchMode::Replace {
-                    ui.label("->");
-                    ui.add(
-                        egui::TextEdit::singleline(&mut self.search.replacement)
-                            .hint_text(self.i18n.t("replace_hint"))
-                            .desired_width(220.0),
+        if !self.search.open { return; }
+        let bg = if self.sombre {
+            Color32::from_rgb(28, 31, 37)
+        } else {
+            Color32::from_rgb(242, 244, 248)
+        };
+        egui::TopBottomPanel::bottom("search_panel")
+            .frame(
+                egui::Frame::none()
+                    .fill(bg)
+                    .inner_margin(egui::Margin::symmetric(10.0, 8.0)),
+            )
+            .show(ctx, |ui| {
+                ui.horizontal(|ui| {
+                    let mode_label = if self.search.mode == SearchMode::Replace {
+                        self.i18n.t("replace")
+                    } else {
+                        self.i18n.t("find")
+                    };
+                    ui.label(mode_label);
+                    let search_response = ui.add(
+                        egui::TextEdit::singleline(&mut self.search.query)
+                            .hint_text(self.i18n.t("search_hint"))
+                            .desired_width(220.0)
+                            .id(egui::Id::new("lechapes_search_input")),
                     );
-                }
-                if ui
-                    .checkbox(&mut self.search.case_sensitive, self.i18n.t("case_sensitive"))
-                    .changed()
-                {
-                    self.search.match_index = usize::MAX;
-                }
-                let nombre = self.tabs.active_tab().map(|tab| {
-                    search::find_all(
-                        &tab.buffer.text,
-                        &self.search.query,
-                        self.search.case_sensitive,
-                    )
-                    .len()
-                }).unwrap_or(0);
-                ui.label(format!("{} resultat(s)", nombre));
-                if ui.button(self.i18n.t("find_next")).clicked() {
-                    self.search_next();
-                }
-                if self.search.mode == SearchMode::Replace {
-                    if ui.button(self.i18n.t("replace_current")).clicked() {
-                        self.replace_current();
+                    if self.focus_search {
+                        search_response.request_focus();
+                        self.focus_search = false;
                     }
-                    if ui.button(self.i18n.t("replace_all")).clicked() {
-                        self.replace_all();
+                    let query_changed = search_response.changed();
+                    if query_changed {
+                        self.search.match_index = usize::MAX;
                     }
-                }
-                if ui.button(self.i18n.t("close")).clicked() {
-                    self.search.open = false;
+                    if self.search.mode == SearchMode::Replace {
+                        ui.label("->");
+                        ui.add(
+                            egui::TextEdit::singleline(&mut self.search.replacement)
+                                .hint_text(self.i18n.t("replace_hint"))
+                                .desired_width(220.0),
+                        );
+                    }
+                    if ui.checkbox(&mut self.search.case_sensitive, self.i18n.t("case_sensitive")).changed() {
+                        self.search.match_index = usize::MAX;
+                    }
+                    let nombre = self.tabs.active_tab().map(|tab| {
+                        search::find_all(&tab.buffer.text, &self.search.query, self.search.case_sensitive).len()
+                    }).unwrap_or(0);
+                    ui.label(format!("{} resultat(s)", nombre));
+                    if ui.button(self.i18n.t("find_next")).clicked() {
+                        self.search_next();
+                    }
+                    if self.search.mode == SearchMode::Replace {
+                        if ui.button(self.i18n.t("replace_current")).clicked() {
+                            self.replace_current();
+                        }
+                        if ui.button(self.i18n.t("replace_all")).clicked() {
+                            self.replace_all();
+                        }
+                    }
+                    if ui.button(self.i18n.t("close")).clicked() {
+                        self.search.open = false;
+                    }
+                });
+
+                let resultats: Vec<(usize, usize, usize, usize, String)> =
+                    if let Some(tab) = self.tabs.active_tab() {
+                        if self.search.query.is_empty() {
+                            Vec::new()
+                        } else {
+                            search::find_all(&tab.buffer.text, &self.search.query, self.search.case_sensitive)
+                                .into_iter()
+                                .enumerate()
+                                .map(|(index, range)| {
+                                    let prefix = &tab.buffer.text[..range.start];
+                                    let ligne = prefix.bytes().filter(|b| *b == b'\n').count() + 1;
+                                    let colonne = prefix.rsplit('\n').next().unwrap_or("").chars().count() + 1;
+                                    let debut_ligne = prefix.rfind('\n').map(|p| p + 1).unwrap_or(0);
+                                    let fin_ligne = tab.buffer.text[range.end..]
+                                        .find('\n')
+                                        .map(|p| range.end + p)
+                                        .unwrap_or(tab.buffer.text.len());
+                                    let extrait = tab.buffer.text[debut_ligne..fin_ligne].trim().to_string();
+                                    (index, range.start, ligne, colonne, extrait)
+                                })
+                                .collect()
+                        }
+                    } else {
+                        Vec::new()
+                    };
+
+                if !resultats.is_empty() {
+                    ui.separator();
+                    let fichier_actif = self.tabs.active_tab().map(|tab| {
+                        tab.path.as_ref().map(|path| path.to_string_lossy().to_string())
+                            .unwrap_or_else(|| self.i18n.t("untitled").to_string())
+                    }).unwrap_or_default();
+                    ui.label(format!("{} - {} emplacement(s) :", fichier_actif, resultats.len()));
+                    egui::ScrollArea::vertical()
+                        .id_source("search_locations")
+                        .max_height(160.0)
+                        .show(ui, |ui| {
+                            for (index, byte_pos, ligne, colonne, extrait) in &resultats {
+                                let selectionne = *index == self.search.match_index;
+                                let label = format!(
+                                    "{}  |  ligne {}, colonne {}  |  {}",
+                                    *index + 1,
+                                    ligne,
+                                    colonne,
+                                    extrait
+                                );
+                                if ui.selectable_label(selectionne, label).clicked() {
+                                    self.search.match_index = *index;
+                                    if let Some(tab) = self.tabs.active_tab_mut() {
+                                        tab.cursor = *byte_pos;
+                                        tab.scroll_to = Some(*byte_pos);
+                                    }
+                                    self.focus_editor = true;
+                                }
+                            }
+                        });
                 }
             });
-
-            let resultats: Vec<(usize, usize, usize, usize, String)> =
-                if let Some(tab) = self.tabs.active_tab() {
-                    if self.search.query.is_empty() {
-                        Vec::new()
-                    } else {
-                        search::find_all(
-                            &tab.buffer.text,
-                            &self.search.query,
-                            self.search.case_sensitive,
-                        )
-                        .into_iter()
-                        .enumerate()
-                        .map(|(index, range)| {
-                            let prefix = &tab.buffer.text[..range.start];
-                            let ligne = prefix.bytes().filter(|b| *b == b'\n').count() + 1;
-                            let colonne = prefix.rsplit('\n').next().unwrap_or("").chars().count() + 1;
-                            let debut_ligne = prefix.rfind('\n').map(|p| p + 1).unwrap_or(0);
-                            let fin_ligne = tab.buffer.text[range.end..]
-                                .find('\n')
-                                .map(|p| range.end + p)
-                                .unwrap_or(tab.buffer.text.len());
-                            let extrait = tab.buffer.text[debut_ligne..fin_ligne].trim().to_string();
-                            (index, range.start, ligne, colonne, extrait)
-                        })
-                        .collect()
-                    }
-                } else {
-                    Vec::new()
-                };
-
-            if !resultats.is_empty() {
-                ui.separator();
-                let fichier_actif = self.tabs.active_tab().map(|tab| {
-                    tab.path
-                        .as_ref()
-                        .map(|path| path.to_string_lossy().to_string())
-                        .unwrap_or_else(|| self.i18n.t("untitled").to_string())
-                }).unwrap_or_default();
-                ui.label(format!("{} — {} emplacement(s) :", fichier_actif, resultats.len()));
-                egui::ScrollArea::vertical()
-                    .id_source("search_locations")
-                    .max_height(150.0)
-                    .show(ui, |ui| {
-                        for (index, byte_pos, ligne, colonne, extrait) in &resultats {
-                            let selectionne = *index == self.search.match_index;
-                            let label = format!(
-                                "{}  |  ligne {}, colonne {}  |  {}",
-                                index + 1,
-                                ligne,
-                                colonne,
-                                extrait
-                            );
-                            if ui.selectable_label(selectionne, label).clicked() {
-                                self.search.match_index = *index;
-                                if let Some(tab) = self.tabs.active_tab_mut() {
-                                    tab.cursor = *byte_pos;
-                                    tab.scroll_to = Some(*byte_pos);
-                                }
-                                self.focus_editor = true;
-                            }
-                        }
-                    });
-            }
-        });
     }
 
     fn status_bar(&mut self, ctx: &egui::Context) {
-        egui::TopBottomPanel::bottom("statusbar").show(ctx, |ui| {
-            ui.horizontal(|ui| {
-                if let Some(tab) = self.tabs.active_tab() {
-                    if let Some(p) = &tab.path {
-                        ui.label(p.to_string_lossy());
-                    } else {
-                        ui.label(self.i18n.t("untitled"));
+        let bg = if self.sombre {
+            Color32::from_rgb(20, 22, 26)
+        } else {
+            Color32::from_rgb(240, 242, 245)
+        };
+        egui::TopBottomPanel::bottom("statusbar")
+            .frame(
+                egui::Frame::none()
+                    .fill(bg)
+                    .inner_margin(egui::Margin::symmetric(12.0, 4.0)),
+            )
+            .show(ctx, |ui| {
+                ui.horizontal(|ui| {
+                    if let Some(tab) = self.tabs.active_tab() {
+                        if let Some(p) = &tab.path {
+                            ui.label(p.to_string_lossy());
+                        } else {
+                            ui.label(self.i18n.t("untitled"));
+                        }
+                        ui.separator();
+                        ui.label(tab.buffer.encoding.name());
+                        ui.separator();
+                        let le = match tab.buffer.line_ending {
+                            LineEnding::Lf => "LF",
+                            LineEnding::Crlf => "CRLF",
+                        };
+                        ui.label(le);
+                        ui.separator();
+                        let lines = tab.buffer.text.lines().count().max(1);
+                        ui.label(format!("{} L", lines));
                     }
-                    ui.separator();
-                    ui.label(tab.buffer.encoding.name());
-                    ui.separator();
-                    let le = match tab.buffer.line_ending {
-                        LineEnding::Lf => "LF",
-                        LineEnding::Crlf => "CRLF",
-                    };
-                    ui.label(le);
-                    ui.separator();
-                    let lines = tab.buffer.text.lines().count().max(1);
-                    ui.label(format!("{} L", lines));
-                }
-                if !self.status.is_empty() {
-                    ui.separator();
-                    ui.label(&self.status);
-                }
+                    if !self.status.is_empty() {
+                        ui.separator();
+                        ui.label(&self.status);
+                    }
+                });
             });
-        });
     }
 
     fn editor(&mut self, ctx: &egui::Context) {
         let couleur_fond_editeur = if self.sombre {
-            egui::Color32::from_rgb(28, 30, 34)
+            Color32::from_rgb(22, 24, 28)
         } else {
-            egui::Color32::WHITE
+            Color32::WHITE
         };
         let couleur_texte_editeur = if self.sombre {
-            egui::Color32::from_rgb(220, 224, 230)
+            Color32::from_rgb(220, 224, 230)
         } else {
-            egui::Color32::from_rgb(30, 35, 45)
+            Color32::from_rgb(30, 35, 45)
         };
 
         egui::CentralPanel::default()
             .frame(egui::Frame::none().fill(couleur_fond_editeur))
             .show(ctx, |ui| {
-                let Some(tab) = self.tabs.active_tab_mut() else {
-                    return;
-                };
+                let Some(tab) = self.tabs.active_tab_mut() else { return; };
                 let total_lines = tab.buffer.text.lines().count().max(1);
                 let gutter_w = theme::line_number_width(total_lines);
                 let tab_id = tab.id;
@@ -984,8 +1088,7 @@ impl LechapesApp {
                         byte_cursor -= 1;
                     }
                     let char_cursor = tab.buffer.text[..byte_cursor].chars().count();
-                    let mut state = egui::text_edit::TextEditState::load(ctx, editor_id)
-                        .unwrap_or_default();
+                    let mut state = egui::text_edit::TextEditState::load(ctx, editor_id).unwrap_or_default();
                     state.cursor.set_char_range(Some(
                         egui::text::CCursorRange::one(egui::text::CCursor::new(char_cursor)),
                     ));
@@ -1018,7 +1121,6 @@ impl LechapesApp {
                             ui.separator();
 
                             let largeur_editeur = (largeur_totale - gutter_w - 8.0).max(100.0);
-
                             let ancienne_couleur = ui.visuals().extreme_bg_color;
                             ui.visuals_mut().extreme_bg_color = couleur_fond_editeur;
 
@@ -1041,12 +1143,12 @@ impl LechapesApp {
                                             egui::FontId::monospace(14.0), couleur_texte_editeur));
                                     }
                                     let bg = if i == current_match {
-                                        egui::Color32::from_rgb(255, 145, 35)
+                                        Color32::from_rgb(255, 145, 35)
                                     } else {
-                                        egui::Color32::from_rgb(115, 100, 35)
+                                        Color32::from_rgb(115, 100, 35)
                                     };
                                     let mut fmt = egui::TextFormat::simple(
-                                        egui::FontId::monospace(14.0), egui::Color32::BLACK);
+                                        egui::FontId::monospace(14.0), Color32::BLACK);
                                     fmt.background = bg;
                                     job.append(&string[start..end], 0.0, fmt);
                                     pos = end;
@@ -1091,9 +1193,7 @@ impl LechapesApp {
     }
 
     fn handle_pending_close(&mut self, ctx: &egui::Context) {
-        if !self.pending_close {
-            return;
-        }
+        if !self.pending_close { return; }
         let mut confirmed = false;
         let mut cancelled = false;
         let mut window_open = true;
@@ -1134,9 +1234,7 @@ impl LechapesApp {
     }
 
     fn handle_pending_tab_close(&mut self, ctx: &egui::Context) {
-        let Some(idx) = self.pending_tab_close else {
-            return;
-        };
+        let Some(idx) = self.pending_tab_close else { return; };
         let mut confirmed = false;
         let mut cancelled = false;
         let mut window_open = true;
@@ -1182,18 +1280,11 @@ impl LechapesApp {
 
     fn build_session(&self) -> Session {
         Session {
-            open_paths: self
-                .tabs
-                .tabs
-                .iter()
+            open_paths: self.tabs.tabs.iter()
                 .filter_map(|t| t.path.as_ref().map(|p| p.to_string_lossy().to_string()))
                 .collect(),
             active: self.tabs.active,
-            root: self
-                .explorer
-                .root
-                .as_ref()
-                .map(|p| p.to_string_lossy().to_string()),
+            root: self.explorer.root.as_ref().map(|p| p.to_string_lossy().to_string()),
             dark: self.sombre,
             lang: match self.i18n.lang {
                 Lang::Fr => "fr".to_string(),
@@ -1232,9 +1323,19 @@ impl eframe::App for LechapesApp {
         self.search_panel(ctx);
         self.status_bar(ctx);
 
+        let side_bg = if self.sombre {
+            Color32::from_rgb(28, 30, 35)
+        } else {
+            Color32::from_rgb(244, 246, 249)
+        };
         egui::SidePanel::left("explorer_panel")
             .resizable(true)
-            .default_width(240.0)
+            .default_width(260.0)
+            .frame(
+                egui::Frame::none()
+                    .fill(side_bg)
+                    .inner_margin(egui::Margin::symmetric(10.0, 8.0)),
+            )
             .show(ctx, |ui| {
                 let action = self.explorer.ui(ui, &self.i18n);
                 if action.undo {

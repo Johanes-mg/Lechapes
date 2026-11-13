@@ -1,4 +1,4 @@
-use egui::{Color32, TextureFilter, TextureHandle, TextureOptions, TextureWrapMode};
+use egui::{Color32, Rounding, Stroke, TextureFilter, TextureHandle, TextureOptions, TextureWrapMode, Visuals};
 use std::collections::HashMap;
 use std::sync::Mutex;
 
@@ -22,6 +22,19 @@ fn hash_bytes(bytes: &[u8]) -> u64 {
         h = h.wrapping_mul(0x100000001b3);
     }
     h
+}
+
+fn filtrer_pour(taille: [usize; 2]) -> TextureOptions {
+    let filtre = if taille[0] <= 64 && taille[1] <= 64 {
+        TextureFilter::Nearest
+    } else {
+        TextureFilter::Linear
+    };
+    TextureOptions {
+        magnification: filtre,
+        minification: filtre,
+        wrap_mode: TextureWrapMode::ClampToEdge,
+    }
 }
 
 pub fn image(ctx: &egui::Context, nom: &str) -> Option<TextureHandle> {
@@ -50,12 +63,7 @@ pub fn image(ctx: &egui::Context, nom: &str) -> Option<TextureHandle> {
     let taille = [rgba.width() as usize, rgba.height() as usize];
     let pixels = rgba.into_raw();
     let color_image = egui::ColorImage::from_rgba_unmultiplied(taille, &pixels);
-    let options = TextureOptions {
-        magnification: TextureFilter::Linear,
-        minification: TextureFilter::Linear,
-        wrap_mode: TextureWrapMode::ClampToEdge,
-    };
-    let texture = ctx.load_texture(cle_cache.clone(), color_image, options);
+    let texture = ctx.load_texture(cle_cache.clone(), color_image, filtrer_pour(taille));
     let mut cache = IMAGES.lock().unwrap();
     let map = cache.get_or_insert_with(HashMap::new);
     map.insert(cle_cache, texture.clone());
@@ -78,7 +86,7 @@ pub fn bouton_image_texte(
         Color32::TRANSPARENT
     };
     let painter = ui.painter();
-    painter.rect_filled(rect, 6.0, fond);
+    painter.rect_filled(rect, 8.0, fond);
 
     let taille_icone = hauteur - 10.0;
     let marge = 8.0;
@@ -142,7 +150,7 @@ pub fn bouton_image_seule(ui: &mut egui::Ui, fichier: &str, taille: f32, taille_
         Color32::TRANSPARENT
     };
     let painter = ui.painter();
-    painter.rect_filled(rect, 6.0, fond);
+    painter.rect_filled(rect, 8.0, fond);
     if let Some(tex) = image(&ctx, fichier) {
         let img_rect = egui::Rect::from_center_size(
             rect.center(),
@@ -187,100 +195,78 @@ pub fn charger_icone_fenetre(nom: &str) -> Option<egui::IconData> {
 }
 
 pub fn configurer_style(ctx: &egui::Context, sombre: bool) {
-    let mut visuals = if sombre {
-        egui::Visuals::dark()
-    } else {
-        egui::Visuals::light()
+    let mut visuals = if sombre { Visuals::dark() } else { Visuals::light() };
+
+    let bg_panel = if sombre { Color32::from_rgb(24, 26, 30) } else { Color32::from_rgb(248, 249, 251) };
+    let bg_window = if sombre { Color32::from_rgb(34, 37, 43) } else { Color32::WHITE };
+    let bg_extreme = if sombre { Color32::from_rgb(18, 20, 24) } else { Color32::WHITE };
+    let bg_faint = if sombre { Color32::from_rgb(30, 33, 38) } else { Color32::from_rgb(240, 242, 245) };
+    let bg_widget = if sombre { Color32::from_rgb(42, 45, 52) } else { Color32::WHITE };
+    let bg_widget_weak = if sombre { Color32::from_rgb(38, 41, 47) } else { Color32::from_rgb(244, 246, 249) };
+    let border = if sombre { Color32::from_rgb(55, 58, 65) } else { Color32::from_rgb(222, 226, 232) };
+    let text = if sombre { Color32::from_rgb(224, 228, 234) } else { Color32::from_rgb(30, 35, 45) };
+    let selection = if sombre { Color32::from_rgb(60, 90, 140) } else { Color32::from_rgb(210, 225, 245) };
+
+    visuals.panel_fill = bg_panel;
+    visuals.window_fill = bg_window;
+    visuals.extreme_bg_color = bg_extreme;
+    visuals.faint_bg_color = bg_faint;
+    visuals.window_rounding = Rounding::same(12.0);
+    visuals.menu_rounding = Rounding::same(10.0);
+    visuals.window_shadow = egui::epaint::Shadow {
+        offset: egui::vec2(0.0, 6.0),
+        blur: 16.0,
+        spread: 0.0,
+        color: Color32::from_black_alpha(60),
     };
 
-    visuals.panel_fill = if sombre {
-        Color32::from_rgb(28, 30, 34)
-    } else {
-        Color32::from_rgb(248, 249, 251)
-    };
-    visuals.window_fill = if sombre {
-        Color32::from_rgb(38, 41, 46)
-    } else {
-        Color32::WHITE
-    };
-    visuals.extreme_bg_color = if sombre {
-        Color32::from_rgb(20, 22, 26)
-    } else {
-        Color32::WHITE
-    };
-    visuals.faint_bg_color = if sombre {
-        Color32::from_rgb(34, 36, 41)
-    } else {
-        Color32::from_rgb(240, 242, 245)
-    };
-    visuals.widgets.noninteractive.bg_fill = if sombre {
-        Color32::from_rgb(34, 36, 41)
-    } else {
-        Color32::from_rgb(240, 242, 245)
-    };
-    visuals.widgets.noninteractive.bg_stroke = egui::Stroke::new(
-        1.0_f32,
-        if sombre {
-            Color32::from_rgb(60, 64, 70)
-        } else {
-            Color32::from_rgb(222, 226, 232)
-        },
-    );
-    visuals.widgets.noninteractive.fg_stroke = egui::Stroke::new(
-        1.0_f32,
-        if sombre {
-            Color32::from_rgb(220, 224, 230)
-        } else {
-            Color32::from_rgb(30, 35, 45)
-        },
-    );
-    visuals.widgets.inactive.bg_fill = if sombre {
-        Color32::from_rgb(45, 48, 54)
-    } else {
-        Color32::WHITE
-    };
-    visuals.widgets.inactive.weak_bg_fill = if sombre {
-        Color32::from_rgb(40, 43, 48)
-    } else {
-        Color32::from_rgb(244, 246, 249)
-    };
-    visuals.widgets.inactive.bg_stroke = egui::Stroke::new(
-        1.0_f32,
-        if sombre {
-            Color32::from_rgb(60, 64, 70)
-        } else {
-            Color32::from_rgb(222, 226, 232)
-        },
-    );
-    visuals.widgets.inactive.fg_stroke = egui::Stroke::new(
-        1.0_f32,
-        if sombre {
-            Color32::from_rgb(220, 224, 230)
-        } else {
-            Color32::from_rgb(30, 35, 45)
-        },
-    );
-    visuals.widgets.inactive.rounding = egui::Rounding::same(6.0);
-    visuals.widgets.hovered.rounding = egui::Rounding::same(6.0);
-    visuals.widgets.active.rounding = egui::Rounding::same(6.0);
-    visuals.selection.bg_fill = if sombre {
-        Color32::from_rgb(60, 90, 140)
-    } else {
-        Color32::from_rgb(210, 225, 245)
-    };
+    visuals.widgets.noninteractive.bg_fill = bg_faint;
+    visuals.widgets.noninteractive.bg_stroke = Stroke::new(1.0_f32, border);
+    visuals.widgets.noninteractive.fg_stroke = Stroke::new(1.0_f32, text);
+    visuals.widgets.noninteractive.rounding = Rounding::same(8.0);
+
+    visuals.widgets.inactive.bg_fill = bg_widget;
+    visuals.widgets.inactive.weak_bg_fill = bg_widget_weak;
+    visuals.widgets.inactive.bg_stroke = Stroke::new(1.0_f32, border);
+    visuals.widgets.inactive.fg_stroke = Stroke::new(1.0_f32, text);
+    visuals.widgets.inactive.rounding = Rounding::same(8.0);
+
+    visuals.widgets.hovered.bg_fill = if sombre { Color32::from_rgb(52, 56, 64) } else { Color32::from_rgb(232, 234, 238) };
+    visuals.widgets.hovered.weak_bg_fill = visuals.widgets.hovered.bg_fill;
+    visuals.widgets.hovered.bg_stroke = Stroke::new(1.0_f32, if sombre { Color32::from_rgb(90, 150, 220) } else { Color32::from_rgb(180, 200, 230) });
+    visuals.widgets.hovered.fg_stroke = Stroke::new(1.0_f32, text);
+    visuals.widgets.hovered.rounding = Rounding::same(8.0);
+
+    visuals.widgets.active.bg_fill = if sombre { Color32::from_rgb(58, 64, 74) } else { Color32::from_rgb(220, 224, 230) };
+    visuals.widgets.active.weak_bg_fill = visuals.widgets.active.bg_fill;
+    visuals.widgets.active.bg_stroke = Stroke::new(1.0_f32, if sombre { Color32::from_rgb(120, 170, 230) } else { Color32::from_rgb(120, 170, 220) });
+    visuals.widgets.active.fg_stroke = Stroke::new(1.0_f32, text);
+    visuals.widgets.active.rounding = Rounding::same(8.0);
+
+    visuals.widgets.open.bg_fill = bg_widget;
+    visuals.widgets.open.weak_bg_fill = bg_widget_weak;
+    visuals.widgets.open.bg_stroke = Stroke::new(1.0_f32, border);
+    visuals.widgets.open.fg_stroke = Stroke::new(1.0_f32, text);
+    visuals.widgets.open.rounding = Rounding::same(8.0);
+
+    visuals.selection.bg_fill = selection;
+    visuals.selection.stroke = Stroke::new(1.0_f32, if sombre { Color32::from_rgb(160, 200, 250) } else { Color32::from_rgb(60, 110, 180) });
 
     ctx.set_visuals(visuals);
+
     let mut style = (*ctx.style()).clone();
-    style.spacing.item_spacing = egui::vec2(8.0, 6.0);
-    style.spacing.button_padding = egui::vec2(10.0, 6.0);
+    style.spacing.item_spacing = egui::vec2(10.0, 8.0);
+    style.spacing.button_padding = egui::vec2(12.0, 8.0);
+    style.spacing.menu_margin = egui::Margin::same(6.0);
+    style.spacing.interact_size.y = 26.0;
     ctx.set_style(style);
 }
 
 pub fn configurer_style_editeur(ctx: &egui::Context) {
     let mut style = (*ctx.style()).clone();
-    style.visuals.widgets.inactive.bg_stroke = egui::Stroke::NONE;
-    style.visuals.widgets.hovered.bg_stroke = egui::Stroke::NONE;
-    style.visuals.widgets.active.bg_stroke = egui::Stroke::NONE;
+    style.visuals.widgets.inactive.bg_stroke = Stroke::NONE;
+    style.visuals.widgets.hovered.bg_stroke = Stroke::NONE;
+    style.visuals.widgets.active.bg_stroke = Stroke::NONE;
     ctx.set_style(style);
 }
 

@@ -8,4 +8,6 @@ installer.iss
 *.swp
 Thumbs.db
 desktop.ini
+codesource*.txt
 code_source.txt
+/plugins

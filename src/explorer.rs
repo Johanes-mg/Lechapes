@@ -16,26 +16,10 @@ pub struct Explorer {
     message_erreur: Option<String>,
 }
 
-struct DialogueRenommer {
-    cible: PathBuf,
-    nom: String,
-}
-
-struct DialogueSupprimer {
-    cible: PathBuf,
-    definitif: bool,
-}
-
-struct DialogueDeplacer {
-    cible: PathBuf,
-    destination: Option<PathBuf>,
-}
-
-struct DialogueNouveau {
-    parent: PathBuf,
-    nom: String,
-    est_dossier: bool,
-}
+struct DialogueRenommer { cible: PathBuf, nom: String }
+struct DialogueSupprimer { cible: PathBuf, definitif: bool }
+struct DialogueDeplacer { cible: PathBuf, destination: Option<PathBuf> }
+struct DialogueNouveau { parent: PathBuf, nom: String, est_dossier: bool }
 
 pub struct ExplorerAction {
     pub open: Option<PathBuf>,
@@ -74,7 +58,7 @@ impl Explorer {
             modified: false,
             refreshed: false,
         };
-        let taille_bouton = 28.0;
+        let taille_bouton = 30.0;
         ui.horizontal(|ui| {
             ui.set_min_height(taille_bouton);
             ui.label(
@@ -103,6 +87,7 @@ impl Explorer {
                 }
             });
         });
+        ui.add_space(4.0);
         ui.separator();
 
         if let Some(root) = self.root.clone() {
@@ -120,7 +105,7 @@ impl Explorer {
                     });
 
                     let (rect, resp) = ui.allocate_exact_size(
-                        egui::vec2(ui.available_width(), 22.0),
+                        egui::vec2(ui.available_width(), 26.0),
                         egui::Sense::click(),
                     );
                     let painter = ui.painter();
@@ -184,17 +169,12 @@ impl Explorer {
             if ui
                 .button(format!(
                     "Coller ({})",
-                    pp.file_name()
-                        .map(|s| s.to_string_lossy().to_string())
-                        .unwrap_or_default()
+                    pp.file_name().map(|s| s.to_string_lossy().to_string()).unwrap_or_default()
                 ))
                 .clicked()
             {
                 match fs_ops::copier(&pp, parent) {
-                    Ok(_) => {
-                        self.message_erreur = None;
-                        self.expanded.clear();
-                    }
+                    Ok(_) => { self.message_erreur = None; self.expanded.clear(); }
                     Err(e) => self.message_erreur = Some(e),
                 }
                 ui.close_menu();
@@ -219,10 +199,7 @@ impl Explorer {
             self.presse_papier = Some(chemin.to_path_buf());
             ui.close_menu();
         }
-        if ui
-            .button(egui::RichText::new("Deplacer").color(Color32::from_rgb(90, 160, 240)))
-            .clicked()
-        {
+        if ui.button(egui::RichText::new("Deplacer").color(Color32::from_rgb(90, 160, 240))).clicked() {
             self.dialogue_deplacer = Some(DialogueDeplacer {
                 cible: chemin.to_path_buf(),
                 destination: None,
@@ -230,21 +207,12 @@ impl Explorer {
             ui.close_menu();
         }
         if ui.button("Renommer").clicked() {
-            let nom = chemin
-                .file_name()
-                .map(|s| s.to_string_lossy().to_string())
-                .unwrap_or_default();
-            self.dialogue_renommer = Some(DialogueRenommer {
-                cible: chemin.to_path_buf(),
-                nom,
-            });
+            let nom = chemin.file_name().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
+            self.dialogue_renommer = Some(DialogueRenommer { cible: chemin.to_path_buf(), nom });
             ui.close_menu();
         }
         ui.separator();
-        if ui
-            .button(egui::RichText::new("Supprimer").color(Color32::from_rgb(220, 90, 90)))
-            .clicked()
-        {
+        if ui.button(egui::RichText::new("Supprimer").color(Color32::from_rgb(220, 90, 90))).clicked() {
             self.dialogue_supprimer = Some(DialogueSupprimer {
                 cible: chemin.to_path_buf(),
                 definitif: false,
@@ -275,26 +243,18 @@ impl Explorer {
             if ui
                 .button(format!(
                     "Coller ici ({})",
-                    pp.file_name()
-                        .map(|s| s.to_string_lossy().to_string())
-                        .unwrap_or_default()
+                    pp.file_name().map(|s| s.to_string_lossy().to_string()).unwrap_or_default()
                 ))
                 .clicked()
             {
                 match fs_ops::copier(&pp, chemin) {
-                    Ok(_) => {
-                        self.message_erreur = None;
-                        self.expanded.clear();
-                    }
+                    Ok(_) => { self.message_erreur = None; self.expanded.clear(); }
                     Err(e) => self.message_erreur = Some(e),
                 }
                 ui.close_menu();
             }
         }
-        if ui
-            .button(egui::RichText::new("Deplacer").color(Color32::from_rgb(90, 160, 240)))
-            .clicked()
-        {
+        if ui.button(egui::RichText::new("Deplacer").color(Color32::from_rgb(90, 160, 240))).clicked() {
             self.dialogue_deplacer = Some(DialogueDeplacer {
                 cible: chemin.to_path_buf(),
                 destination: None,
@@ -302,21 +262,12 @@ impl Explorer {
             ui.close_menu();
         }
         if ui.button("Renommer").clicked() {
-            let nom = chemin
-                .file_name()
-                .map(|s| s.to_string_lossy().to_string())
-                .unwrap_or_default();
-            self.dialogue_renommer = Some(DialogueRenommer {
-                cible: chemin.to_path_buf(),
-                nom,
-            });
+            let nom = chemin.file_name().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
+            self.dialogue_renommer = Some(DialogueRenommer { cible: chemin.to_path_buf(), nom });
             ui.close_menu();
         }
         ui.separator();
-        if ui
-            .button(egui::RichText::new("Supprimer").color(Color32::from_rgb(220, 90, 90)))
-            .clicked()
-        {
+        if ui.button(egui::RichText::new("Supprimer").color(Color32::from_rgb(220, 90, 90))).clicked() {
             self.dialogue_supprimer = Some(DialogueSupprimer {
                 cible: chemin.to_path_buf(),
                 definitif: false,
@@ -331,10 +282,7 @@ impl Explorer {
             Err(_) => return,
         };
         for entry in entries {
-            let name = entry
-                .file_name()
-                .map(|s| s.to_string_lossy().to_string())
-                .unwrap_or_default();
+            let name = entry.file_name().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
             if name.starts_with('.') {
                 continue;
             }
@@ -400,11 +348,7 @@ impl Explorer {
             let mut valider = false;
             let mut annuler = false;
             let mut window_open = true;
-            let titre = if d.est_dossier {
-                "Nouveau dossier"
-            } else {
-                "Nouveau fichier"
-            };
+            let titre = if d.est_dossier { "Nouveau dossier" } else { "Nouveau fichier" };
             egui::Window::new(titre)
                 .collapsible(false)
                 .resizable(false)
@@ -417,17 +361,11 @@ impl Explorer {
                         ui.text_edit_singleline(&mut d.nom);
                     });
                     ui.horizontal(|ui| {
-                        if ui.button("Creer").clicked() {
-                            valider = true;
-                        }
-                        if ui.button("Annuler").clicked() {
-                            annuler = true;
-                        }
+                        if ui.button("Creer").clicked() { valider = true; }
+                        if ui.button("Annuler").clicked() { annuler = true; }
                     });
                 });
-            if !window_open {
-                annuler = true;
-            }
+            if !window_open { annuler = true; }
             if valider {
                 let cible = d.parent.join(&d.nom);
                 let res = if d.est_dossier {
@@ -436,17 +374,11 @@ impl Explorer {
                     fs_ops::creer_fichier_vide(&cible)
                 };
                 match res {
-                    Ok(_) => {
-                        self.expanded.clear();
-                        self.dialogue_nouveau = None;
-                        modifie = true;
-                    }
+                    Ok(_) => { self.expanded.clear(); self.dialogue_nouveau = None; modifie = true; }
                     Err(e) => self.message_erreur = Some(e),
                 }
             }
-            if annuler {
-                self.dialogue_nouveau = None;
-            }
+            if annuler { self.dialogue_nouveau = None; }
         }
 
         if let Some(d) = &mut self.dialogue_renommer {
@@ -465,30 +397,18 @@ impl Explorer {
                         ui.text_edit_singleline(&mut d.nom);
                     });
                     ui.horizontal(|ui| {
-                        if ui.button("Renommer").clicked() {
-                            valider = true;
-                        }
-                        if ui.button("Annuler").clicked() {
-                            annuler = true;
-                        }
+                        if ui.button("Renommer").clicked() { valider = true; }
+                        if ui.button("Annuler").clicked() { annuler = true; }
                     });
                 });
-            if !window_open {
-                annuler = true;
-            }
+            if !window_open { annuler = true; }
             if valider {
                 match fs_ops::renommer(&d.cible, &d.nom) {
-                    Ok(_) => {
-                        self.expanded.clear();
-                        self.dialogue_renommer = None;
-                        modifie = true;
-                    }
+                    Ok(_) => { self.expanded.clear(); self.dialogue_renommer = None; modifie = true; }
                     Err(e) => self.message_erreur = Some(e),
                 }
             }
-            if annuler {
-                self.dialogue_renommer = None;
-            }
+            if annuler { self.dialogue_renommer = None; }
         }
 
         if let Some(d) = &mut self.dialogue_deplacer {
@@ -505,10 +425,7 @@ impl Explorer {
                     ui.set_min_width(420.0);
                     ui.label(format!(
                         "Deplacer : {}",
-                        d.cible
-                            .file_name()
-                            .map(|s| s.to_string_lossy().to_string())
-                            .unwrap_or_default()
+                        d.cible.file_name().map(|s| s.to_string_lossy().to_string()).unwrap_or_default()
                     ));
                     ui.horizontal(|ui| {
                         ui.label("Destination :");
@@ -518,21 +435,13 @@ impl Explorer {
                             ui.weak("(aucune)");
                         }
                     });
-                    if ui.button("Choisir dossier...").clicked() {
-                        choisir = true;
-                    }
+                    if ui.button("Choisir dossier...").clicked() { choisir = true; }
                     ui.horizontal(|ui| {
-                        if ui.button("Deplacer").clicked() {
-                            valider = true;
-                        }
-                        if ui.button("Annuler").clicked() {
-                            annuler = true;
-                        }
+                        if ui.button("Deplacer").clicked() { valider = true; }
+                        if ui.button("Annuler").clicked() { annuler = true; }
                     });
                 });
-            if !window_open {
-                annuler = true;
-            }
+            if !window_open { annuler = true; }
             if choisir {
                 if let Some(dest) = rfd::FileDialog::new().pick_folder() {
                     d.destination = Some(dest);
@@ -541,31 +450,21 @@ impl Explorer {
             if valider {
                 if let Some(dest) = d.destination.clone() {
                     match fs_ops::deplacer(&d.cible, &dest) {
-                        Ok(_) => {
-                            self.expanded.clear();
-                            self.dialogue_deplacer = None;
-                            modifie = true;
-                        }
+                        Ok(_) => { self.expanded.clear(); self.dialogue_deplacer = None; modifie = true; }
                         Err(e) => self.message_erreur = Some(e),
                     }
                 } else {
                     self.message_erreur = Some("Choisir une destination".to_string());
                 }
             }
-            if annuler {
-                self.dialogue_deplacer = None;
-            }
+            if annuler { self.dialogue_deplacer = None; }
         }
 
         if let Some(d) = &mut self.dialogue_supprimer {
             let mut valider = false;
             let mut annuler = false;
             let mut window_open = true;
-            let nom = d
-                .cible
-                .file_name()
-                .map(|s| s.to_string_lossy().to_string())
-                .unwrap_or_default();
+            let nom = d.cible.file_name().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
             egui::Window::new("Supprimer")
                 .collapsible(false)
                 .resizable(false)
@@ -580,23 +479,13 @@ impl Explorer {
                         "Le fichier ira dans la corbeille (recuperable)."
                     });
                     ui.horizontal(|ui| {
-                        if ui
-                            .button(
-                                egui::RichText::new("Supprimer")
-                                    .color(Color32::from_rgb(220, 90, 90)),
-                            )
-                            .clicked()
-                        {
+                        if ui.button(egui::RichText::new("Supprimer").color(Color32::from_rgb(220, 90, 90))).clicked() {
                             valider = true;
                         }
-                        if ui.button("Annuler").clicked() {
-                            annuler = true;
-                        }
+                        if ui.button("Annuler").clicked() { annuler = true; }
                     });
                 });
-            if !window_open {
-                annuler = true;
-            }
+            if !window_open { annuler = true; }
             if valider {
                 let res = if d.definitif {
                     fs_ops::supprimer_definitif(&d.cible)
@@ -606,18 +495,14 @@ impl Explorer {
                 match res {
                     Ok(_) => {
                         self.expanded.clear();
-                        if self.selected.as_ref() == Some(&d.cible) {
-                            self.selected = None;
-                        }
+                        if self.selected.as_ref() == Some(&d.cible) { self.selected = None; }
                         self.dialogue_supprimer = None;
                         modifie = true;
                     }
                     Err(e) => self.message_erreur = Some(e),
                 }
             }
-            if annuler {
-                self.dialogue_supprimer = None;
-            }
+            if annuler { self.dialogue_supprimer = None; }
         }
 
         let _ = i18n;
